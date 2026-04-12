@@ -7,7 +7,10 @@ export function getSocket(): Socket {
     const token = localStorage.getItem('token');
     socket = io(process.env.NEXT_PUBLIC_WS_URL!, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
     });
   }
   return socket;

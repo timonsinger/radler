@@ -73,34 +73,35 @@ export default function DashboardPage() {
       .catch(console.error);
   }, [router]);
 
-  // Socket.io verbinden wenn User geladen
+  // Socket.io verbinden wenn User geladen (nur einmal, nicht bei activeRide-Änderung)
   useEffect(() => {
     if (!user) return;
     const socket = getSocket();
 
-    socket.on('ride:new', (data: { ride: Ride }) => {
-      if (!activeRide) setPendingRide(data.ride);
-    });
-
-    socket.on('ride:removed', (data: { rideId: string }) => {
+    const handleRideNew = (data: { ride: Ride }) => {
+      setPendingRide((prev) => prev ?? data.ride);
+    };
+    const handleRideRemoved = (data: { rideId: string }) => {
       setPendingRide((prev) => prev?.id === data.rideId ? null : prev);
-    });
-
-    // Auftrag storniert (z.B. durch Kunden)
-    socket.on('ride:status_update', (data: { rideId: string; status: string }) => {
+    };
+    const handleStatusUpdate = (data: { rideId: string; status: string }) => {
       if (data.status === 'cancelled') {
         setActiveRide((prev) => (prev?.id === data.rideId ? null : prev));
         setPendingRide((prev) => (prev?.id === data.rideId ? null : prev));
       }
-    });
+    };
+
+    socket.on('ride:new', handleRideNew);
+    socket.on('ride:removed', handleRideRemoved);
+    socket.on('ride:status_update', handleStatusUpdate);
 
     return () => {
-      socket.off('ride:new');
-      socket.off('ride:removed');
-      socket.off('ride:status_update');
+      socket.off('ride:new', handleRideNew);
+      socket.off('ride:removed', handleRideRemoved);
+      socket.off('ride:status_update', handleStatusUpdate);
       disconnectSocket();
     };
-  }, [user, activeRide]);
+  }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
 
   // GPS Position alle 3 Sekunden ans Backend senden
   useEffect(() => {
