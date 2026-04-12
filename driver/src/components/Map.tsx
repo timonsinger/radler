@@ -25,6 +25,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
+  const hasCenteredRef = useRef(false); // Karte nur beim ersten Fix zentrieren
 
   useEffect(() => {
     const init = () => {
@@ -100,8 +101,11 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       driverMarkerRef.current = null;
       radiusCircleRef.current?.setMap(null);
       radiusCircleRef.current = null;
+      hasCenteredRef.current = false;
       return;
     }
+
+    const isFirstFix = !driverMarkerRef.current;
 
     if (!driverMarkerRef.current) {
       driverMarkerRef.current = new window.google.maps.Marker({
@@ -144,8 +148,11 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current = null;
     }
 
-    // Karte auf Position zentrieren
-    googleMapRef.current.panTo(driverLocation);
+    // Nur beim allerersten GPS-Fix zentrieren – danach nicht mehr springen
+    if (isFirstFix && !hasCenteredRef.current) {
+      googleMapRef.current.panTo(driverLocation);
+      hasCenteredRef.current = true;
+    }
   }, [driverLocation, radiusKm]);
 
   return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} />;
