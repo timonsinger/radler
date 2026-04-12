@@ -49,7 +49,7 @@ export default function DashboardPage() {
 
   // GPS nur aktiv wenn online oder aktiver Ride
   const trackingActive = isOnline || !!activeRide;
-  const { position } = useGeolocation(trackingActive);
+  const { position, error: gpsError } = useGeolocation(trackingActive);
 
   const driverLocation = position
     ? { lat: position.latitude, lng: position.longitude }
@@ -344,12 +344,34 @@ export default function DashboardPage() {
 
         {/* Info-Text */}
         {isOnline && (
-          <div className="bg-primary-bg border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-online animate-pulse flex-shrink-0" />
-            <p className="text-sm text-primary font-medium">
-              GPS aktiv – neue Aufträge werden angezeigt
-            </p>
-          </div>
+          <>
+            {gpsError ? (
+              <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1.5" />
+                <div>
+                  <p className="text-sm text-red-700 font-semibold">GPS nicht verfügbar</p>
+                  <p className="text-xs text-red-500 mt-0.5">{gpsError}</p>
+                  <p className="text-xs text-red-500 mt-1">
+                    Einstellungen → Safari → Ortungsdienste → aktivieren
+                  </p>
+                </div>
+              </div>
+            ) : !driverLocation ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
+                <p className="text-sm text-yellow-700 font-medium">
+                  GPS wird gesucht…
+                </p>
+              </div>
+            ) : (
+              <div className="bg-primary-bg border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-online animate-pulse flex-shrink-0" />
+                <p className="text-sm text-primary font-medium">
+                  GPS aktiv – neue Aufträge werden angezeigt
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
