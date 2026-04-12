@@ -43,7 +43,17 @@ export async function register(
   return data.user;
 }
 
-export function logout() {
+export async function logout() {
+  // Fahrer vor dem Logout offline setzen
+  try {
+    const token = localStorage.getItem('token');
+    if (token) {
+      await apiFetch('/api/drivers/status', {
+        method: 'PATCH',
+        body: JSON.stringify({ is_online: false }),
+      });
+    }
+  } catch { /* ignorieren – Logout trotzdem durchführen */ }
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   window.location.href = '/login';

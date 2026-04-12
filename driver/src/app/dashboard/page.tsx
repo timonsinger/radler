@@ -42,6 +42,10 @@ export default function DashboardPage() {
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
   const [maxRideDistance, setMaxRideDistance] = useState(20);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isOnlineRef = useRef(false);
+
+  // Ref synchron halten für den reconnect-Handler
+  isOnlineRef.current = isOnline;
 
   // GPS nur aktiv wenn online oder aktiver Ride
   const trackingActive = isOnline || !!activeRide;
@@ -93,14 +97,23 @@ export default function DashboardPage() {
       }
     };
 
+    // Bei Reconnect: wenn Fahrer online war, Room neu betreten
+    const handleReconnect = () => {
+      if (isOnlineRef.current) {
+        socket.emit('driver:go_online');
+      }
+    };
+
     socket.on('ride:new', handleRideNew);
     socket.on('ride:removed', handleRideRemoved);
     socket.on('ride:status_update', handleStatusUpdate);
+    socket.on('connect', handleReconnect);
 
     return () => {
       socket.off('ride:new', handleRideNew);
       socket.off('ride:removed', handleRideRemoved);
       socket.off('ride:status_update', handleStatusUpdate);
+      socket.off('connect', handleReconnect);
       disconnectSocket();
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
