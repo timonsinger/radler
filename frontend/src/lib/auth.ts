@@ -49,7 +49,14 @@ export function getStoredUser(): User | null {
   const raw = localStorage.getItem('user');
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const user = JSON.parse(raw);
+    // Fahrer haben hier nichts zu suchen → automatisch ausloggen
+    if (user?.role === 'driver') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return null;
+    }
+    return user;
   } catch {
     return null;
   }
