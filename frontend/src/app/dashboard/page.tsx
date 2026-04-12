@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api';
 import NavBar from '@/components/NavBar';
 import RideCard from '@/components/RideCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { useInactivityLogout } from '@/hooks/useInactivityLogout';
 
 interface Ride {
   id: string;
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
+  useInactivityLogout();
 
   useEffect(() => {
     const stored = getStoredUser();

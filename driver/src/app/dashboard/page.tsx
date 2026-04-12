@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getStoredUser, logout, User } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
 import { getSocket, disconnectSocket } from '@/lib/socket';
+import { useInactivityLogout } from '@/hooks/useInactivityLogout';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import OnlineToggle from '@/components/OnlineToggle';
 import StatsCard from '@/components/StatsCard';
@@ -30,6 +31,7 @@ interface Ride {
 
 export default function DashboardPage() {
   const router = useRouter();
+  useInactivityLogout();
   const [user, setUser] = useState<User | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [toggleLoading, setToggleLoading] = useState(false);
