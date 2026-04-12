@@ -14,6 +14,9 @@ export async function login(email: string, password: string): Promise<User> {
     body: JSON.stringify({ email, password }),
   });
   if (data.error) throw new Error(data.error);
+  if (data.user.role === 'driver') {
+    throw new Error('Du bist als Fahrer registriert. Bitte nutze die Fahrer-App.');
+  }
   localStorage.setItem('token', data.token);
   localStorage.setItem('user', JSON.stringify(data.user));
   return data.user;
