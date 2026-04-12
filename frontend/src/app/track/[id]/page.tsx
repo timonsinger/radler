@@ -24,6 +24,7 @@ interface Ride {
   driver_name?: string;
   customer_name?: string;
   delivery_photo_url?: string;
+  rating?: number;
 }
 
 interface LocationPing {
@@ -44,6 +45,10 @@ export default function TrackPage() {
   const [lastPingTime, setLastPingTime] = useState<number | null>(null);
   const [secondsSinceLastPing, setSecondsSinceLastPing] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ride laden
@@ -118,6 +123,24 @@ export default function TrackPage() {
       disconnectSocket();
     };
   }, [id]);
+
+  async function handleRating(stars: number) {
+    if (ratingLoading || ratingSubmitted) return;
+    setSelectedRating(stars);
+    setRatingLoading(true);
+    try {
+      await apiFetch(`/api/rides/${id}/rating`, {
+        method: 'POST',
+        body: JSON.stringify({ rating: stars }),
+      });
+      setRatingSubmitted(true);
+      setRide((prev) => prev ? { ...prev, rating: stars } : prev);
+    } catch {
+      // ignorieren
+    } finally {
+      setRatingLoading(false);
+    }
+  }
 
   async function handleCancel() {
     if (!ride || cancelling) return;
@@ -241,6 +264,42 @@ export default function TrackPage() {
             <p className="font-bold text-primary-dark">Zugestellt!</p>
             <p className="text-sm text-gray-600">Dein Paket wurde erfolgreich geliefert.</p>
           </div>
+        </div>
+      )}
+
+      {/* Bewertung */}
+      {isDelivered && (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-5 shadow-sm">
+          {ride.rating || ratingSubmitted ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <div className="flex gap-1">
+                {[1,2,3,4,5].map((s) => (
+                  <span key={s} className={`text-3xl ${s <= (ride.rating || selectedRating) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                ))}
+              </div>
+              <p className="text-sm font-semibold text-gray-700">Danke für deine Bewertung! 🙏</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-gray-700 mb-1 text-center">Wie war dein Kurier?</p>
+              <p className="text-xs text-gray-400 text-center mb-4">Bewerte die Lieferung</p>
+              <div className="flex justify-center gap-2">
+                {[1,2,3,4,5].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleRating(s)}
+                    onMouseEnter={() => setHoveredRating(s)}
+                    onMouseLeave={() => setHoveredRating(0)}
+                    disabled={ratingLoading}
+                    className="text-4xl transition-transform active:scale-90 disabled:opacity-50"
+                  >
+                    <span className={s <= (hoveredRating || selectedRating) ? 'text-yellow-400' : 'text-gray-200'}>★</span>
+                  </button>
+                ))}
+              </div>
+              {ratingLoading && <p className="text-center text-xs text-gray-400 mt-3">Wird gespeichert…</p>}
+            </>
+          )}
         </div>
       )}
 
