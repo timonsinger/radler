@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredUser, logout, User } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
@@ -51,9 +51,10 @@ export default function DashboardPage() {
   const trackingActive = isOnline || !!activeRide;
   const { position, error: gpsError } = useGeolocation(trackingActive);
 
-  const driverLocation = position
-    ? { lat: position.latitude, lng: position.longitude }
-    : null;
+  const driverLocation = useMemo(
+    () => position ? { lat: position.latitude, lng: position.longitude } : null,
+    [position]
+  );
 
   // Init: User laden, Online-Status + Einstellungen laden
   useEffect(() => {

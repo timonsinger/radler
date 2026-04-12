@@ -26,15 +26,14 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
   const hasCenteredRef = useRef(false);
-  // Ref hält immer die aktuellen Marker-Koordinaten – ohne Re-render zu triggern
   const markerDataRef = useRef<Marker[]>(markers);
+  const driverLocationRef = useRef<{ lat: number; lng: number } | null | undefined>(driverLocation);
 
-  // markerDataRef immer aktuell halten
-  useEffect(() => {
-    markerDataRef.current = markers;
-  }, [markers]);
+  // Keep refs current on every render (no re-render triggered)
+  markerDataRef.current = markers;
+  driverLocationRef.current = driverLocation;
 
-  // Karte initialisieren (einmalig)
+  // Initialize map ONCE
   useEffect(() => {
     const init = () => {
       if (!mapRef.current || !window.google?.maps || googleMapRef.current) return;
@@ -43,6 +42,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
         zoom: 14,
         disableDefaultUI: true,
         zoomControl: false,
+        gestureHandling: 'greedy',
         styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
       });
     };
@@ -51,7 +51,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     return () => clearInterval(iv);
   }, []);
 
-  // Pickup/Dropoff-Marker setzen – NUR wenn markers sich ändern, kein fitBounds hier!
+  // Pickup/Dropoff markers — only when markers array changes, NEVER on driverLocation change
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
     markersRef.current.forEach((m) => m.setMap(null));
@@ -74,11 +74,19 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       });
       markersRef.current.push(m);
     });
-    // hasCenteredRef zurücksetzen wenn neue Marker gesetzt werden (neuer Auftrag)
+    // Reset centering so the new ride view fits properly
     hasCenteredRef.current = false;
-  }, [markers]); // driverLocation bewusst NICHT als Dependency!
+    // If driverLocation already known, center immediately
+    if (markers.length > 0 && driverLocationRef.current && googleMapRef.current) {
+      const bounds = new window.google.maps.LatLngBounds();
+      markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
+      bounds.extend(driverLocationRef.current);
+      googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
+      hasCenteredRef.current = true;
+    }
+  }, [markers]); // driverLocation intentionally NOT a dependency
 
-  // Route berechnen (einmalig wenn markers vorhanden)
+  // Route — only when markers change
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps || !showRoute || markers.length < 2) return;
     if (!dirRendererRef.current) {
@@ -101,7 +109,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     );
   }, [markers, showRoute]);
 
-  // Fahrer-Marker + Radius-Kreis – nur dieser Effect läuft bei GPS-Updates
+  // Driver marker — runs on every GPS update but ONLY moves the marker, never touches map view
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
@@ -116,7 +124,6 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
     const isFirstFix = !driverMarkerRef.current;
 
-    // Marker erstellen oder smooth bewegen (setPosition = kein Springen)
     if (!driverMarkerRef.current) {
       driverMarkerRef.current = new window.google.maps.Marker({
         position: driverLocation,
@@ -133,11 +140,11 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
         zIndex: 10,
       });
     } else {
-      // Nur Marker bewegen – Karte bleibt stabil
+      // Just move the marker — map stays completely still
       driverMarkerRef.current.setPosition(driverLocation);
     }
 
-    // Radius-Kreis aktualisieren (ohne Karte zu zentrieren)
+    // Radius circle — just update center, no map panning
     if (radiusKm && radiusKm > 0) {
       if (!radiusCircleRef.current) {
         radiusCircleRef.current = new window.google.maps.Circle({
@@ -159,18 +166,16 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current = null;
     }
 
-    // Einmalig beim ersten GPS-Fix zentrieren
+    // ONLY center once on first GPS fix
     if (isFirstFix && !hasCenteredRef.current) {
       const data = markerDataRef.current;
       if (data.length > 0) {
-        // Aktiver Auftrag: fitBounds mit Abholort, Zielort UND eigener Position
         const bounds = new window.google.maps.LatLngBounds();
         data.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
         bounds.extend(driverLocation);
         googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
       } else {
-        // Nur eigene Position (Dashboard)
-        googleMapRef.current.panTo(driverLocation);
+        googleMapRef.current.setCenter(driverLocation);
       }
       hasCenteredRef.current = true;
     }
