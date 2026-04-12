@@ -1,0 +1,13 @@
+{
+  "name": "Radler",
+  "short_name": "Radler",
+  "description": "Kurier-Service per Fahrrad in Konstanz",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#22C55E",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

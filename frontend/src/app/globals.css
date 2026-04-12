@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  background-color: #F9FAFB;
+  color: #1F2937;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Safe area für iPhone Notch/Home Bar */
+.safe-area-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Google Maps Autocomplete Dropdown */
+.pac-container {
+  border-radius: 16px !important;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+  margin-top: 4px !important;
+  font-family: inherit !important;
+}
+
+.pac-item {
+  padding: 10px 16px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+}
+
+.pac-item:hover {
+  background-color: #F0FDF4 !important;
+}
+
+.pac-item-selected {
+  background-color: #F0FDF4 !important;
+}
+
+/* Smooth page transitions */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Kein Overscroll-Bounce auf iOS */
+html, body {
+  overscroll-behavior: none;
+}

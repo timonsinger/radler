@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+.next/
+uploads/
+*.log
+rider_key
+.DS_Store
