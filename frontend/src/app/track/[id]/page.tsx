@@ -49,6 +49,7 @@ export default function TrackPage() {
   const [hoveredRating, setHoveredRating] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [ratingLoading, setRatingLoading] = useState(false);
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ride laden
@@ -109,12 +110,12 @@ export default function TrackPage() {
         const lng = data.lng ?? data.longitude ?? 0;
         const now = Date.now();
 
+        setDriverLocation({ lat, lng });
         setLastPingTime(now);
         setSecondsSinceLastPing(0);
         setLocationPings((prev) => {
           const newPing: LocationPing = { lat, lng, timestamp: now };
           const updated = [...prev, newPing];
-          // Nur die letzten MAX_PINGS behalten
           return updated.slice(-MAX_PINGS);
         });
       });
@@ -203,6 +204,7 @@ export default function TrackPage() {
             { lat: Number(ride.pickup_lat), lng: Number(ride.pickup_lng), color: '#22C55E', label: 'A' },
             { lat: Number(ride.dropoff_lat), lng: Number(ride.dropoff_lng), color: '#EF4444', label: 'B' },
           ]}
+          driverLocation={driverLocation}
           locationPings={locationPings}
           className="h-64"
         />
@@ -216,9 +218,12 @@ export default function TrackPage() {
           </div>
         )}
         {locationPings.length === 0 && ['accepted', 'picked_up'].includes(ride.status) && (
-          <p className="text-center text-xs text-gray-400 mt-2">
-            Position wird alle 30 Sekunden aktualisiert
-          </p>
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+            <p className="text-xs text-gray-500">
+              Warte auf Fahrer-Position...
+            </p>
+          </div>
         )}
       </div>
 

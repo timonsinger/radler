@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { KONSTANZ_CENTER } from '@/lib/maps';
 
 interface Marker {
@@ -29,9 +29,27 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const markerDataRef = useRef<Marker[]>(markers);
   const driverLocationRef = useRef<{ lat: number; lng: number } | null | undefined>(driverLocation);
 
-  // Keep refs current on every render (no re-render triggered)
+  // Keep refs current on every render (synchronous, no re-render)
   markerDataRef.current = markers;
   driverLocationRef.current = driverLocation;
+
+  // Center map on driver — called by "center" button and once on first fix
+  const centerOnDriver = useCallback(() => {
+    const map = googleMapRef.current;
+    const loc = driverLocationRef.current;
+    if (!map || !loc) return;
+
+    const data = markerDataRef.current;
+    if (data.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      data.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
+      bounds.extend(loc);
+      map.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
+    } else {
+      map.setCenter(loc);
+      map.setZoom(15);
+    }
+  }, []);
 
   // Initialize map ONCE
   useEffect(() => {
@@ -51,7 +69,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     return () => clearInterval(iv);
   }, []);
 
-  // Pickup/Dropoff markers — only when markers array changes, NEVER on driverLocation change
+  // Pickup/Dropoff markers — only when markers array changes
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
     markersRef.current.forEach((m) => m.setMap(null));
@@ -74,17 +92,14 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       });
       markersRef.current.push(m);
     });
-    // Reset centering so the new ride view fits properly
+    // New markers = new ride → allow one auto-center on next GPS fix
     hasCenteredRef.current = false;
-    // If driverLocation already known, center immediately
-    if (markers.length > 0 && driverLocationRef.current && googleMapRef.current) {
-      const bounds = new window.google.maps.LatLngBounds();
-      markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
-      bounds.extend(driverLocationRef.current);
-      googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
+    // If GPS already known, center now
+    if (markers.length > 0 && driverLocationRef.current) {
+      centerOnDriver();
       hasCenteredRef.current = true;
     }
-  }, [markers]); // driverLocation intentionally NOT a dependency
+  }, [markers, centerOnDriver]);
 
   // Route — only when markers change
   useEffect(() => {
@@ -109,7 +124,8 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     );
   }, [markers, showRoute]);
 
-  // Driver marker — runs on every GPS update but ONLY moves the marker, never touches map view
+  // Driver marker — runs on every GPS update but ONLY moves the marker
+  // NEVER touches map view (no panTo, no setCenter, no fitBounds)
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
@@ -124,7 +140,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
     const isFirstFix = !driverMarkerRef.current;
 
-    if (!driverMarkerRef.current) {
+    if (isFirstFix) {
       driverMarkerRef.current = new window.google.maps.Marker({
         position: driverLocation,
         map: googleMapRef.current,
@@ -141,10 +157,10 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       });
     } else {
       // Just move the marker — map stays completely still
-      driverMarkerRef.current.setPosition(driverLocation);
+      driverMarkerRef.current!.setPosition(driverLocation);
     }
 
-    // Radius circle — just update center, no map panning
+    // Radius circle
     if (radiusKm && radiusKm > 0) {
       if (!radiusCircleRef.current) {
         radiusCircleRef.current = new window.google.maps.Circle({
@@ -166,20 +182,29 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current = null;
     }
 
-    // ONLY center once on first GPS fix
+    // Auto-center ONLY on very first GPS fix, then never again
     if (isFirstFix && !hasCenteredRef.current) {
-      const data = markerDataRef.current;
-      if (data.length > 0) {
-        const bounds = new window.google.maps.LatLngBounds();
-        data.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
-        bounds.extend(driverLocation);
-        googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
-      } else {
-        googleMapRef.current.setCenter(driverLocation);
-      }
+      centerOnDriver();
       hasCenteredRef.current = true;
     }
-  }, [driverLocation, radiusKm]);
+  }, [driverLocation, radiusKm, centerOnDriver]);
 
-  return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} />;
+  return (
+    <div className="relative w-full">
+      <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} />
+      {/* Center-on-me button */}
+      {driverLocation && (
+        <button
+          onClick={centerOnDriver}
+          className="absolute bottom-3 right-3 w-11 h-11 bg-white rounded-full shadow-lg flex items-center justify-center active:bg-gray-100 z-10"
+          title="Auf meine Position zentrieren"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14532D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
 }
