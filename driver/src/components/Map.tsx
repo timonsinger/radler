@@ -25,13 +25,21 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
-  const hasCenteredRef = useRef(false); // Karte nur beim ersten Fix zentrieren
+  const hasCenteredRef = useRef(false);
+  // Ref hält immer die aktuellen Marker-Koordinaten – ohne Re-render zu triggern
+  const markerDataRef = useRef<Marker[]>(markers);
 
+  // markerDataRef immer aktuell halten
+  useEffect(() => {
+    markerDataRef.current = markers;
+  }, [markers]);
+
+  // Karte initialisieren (einmalig)
   useEffect(() => {
     const init = () => {
       if (!mapRef.current || !window.google?.maps || googleMapRef.current) return;
       googleMapRef.current = new window.google.maps.Map(mapRef.current, {
-        center: driverLocation ?? KONSTANZ_CENTER,
+        center: KONSTANZ_CENTER,
         zoom: 14,
         disableDefaultUI: true,
         zoomControl: false,
@@ -43,7 +51,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     return () => clearInterval(iv);
   }, []);
 
-  // Marker setzen
+  // Pickup/Dropoff-Marker setzen – NUR wenn markers sich ändern, kein fitBounds hier!
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
     markersRef.current.forEach((m) => m.setMap(null));
@@ -60,19 +68,17 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
           strokeColor: '#fff',
           strokeWeight: 2,
         },
-        label: marker.label ? { text: marker.label, color: '#fff', fontSize: '11px', fontWeight: 'bold' } : undefined,
+        label: marker.label
+          ? { text: marker.label, color: '#fff', fontSize: '11px', fontWeight: 'bold' }
+          : undefined,
       });
       markersRef.current.push(m);
     });
-    if (markers.length > 0) {
-      const bounds = new window.google.maps.LatLngBounds();
-      markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
-      if (driverLocation) bounds.extend(driverLocation);
-      googleMapRef.current.fitBounds(bounds, { top: 40, bottom: 40, left: 30, right: 30 });
-    }
-  }, [markers, driverLocation]);
+    // hasCenteredRef zurücksetzen wenn neue Marker gesetzt werden (neuer Auftrag)
+    hasCenteredRef.current = false;
+  }, [markers]); // driverLocation bewusst NICHT als Dependency!
 
-  // Route
+  // Route berechnen (einmalig wenn markers vorhanden)
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps || !showRoute || markers.length < 2) return;
     if (!dirRendererRef.current) {
@@ -82,17 +88,20 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       });
       dirRendererRef.current.setMap(googleMapRef.current);
     }
-    new window.google.maps.DirectionsService().route({
-      origin: { lat: markers[0].lat, lng: markers[0].lng },
-      destination: { lat: markers[markers.length - 1].lat, lng: markers[markers.length - 1].lng },
-      travelMode: window.google.maps.TravelMode.BICYCLING,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }, (result: any, status: any) => {
-      if (status === 'OK' && result) dirRendererRef.current!.setDirections(result);
-    });
+    new window.google.maps.DirectionsService().route(
+      {
+        origin: { lat: markers[0].lat, lng: markers[0].lng },
+        destination: { lat: markers[markers.length - 1].lat, lng: markers[markers.length - 1].lng },
+        travelMode: window.google.maps.TravelMode.BICYCLING,
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (result: any, status: any) => {
+        if (status === 'OK' && result) dirRendererRef.current!.setDirections(result);
+      }
+    );
   }, [markers, showRoute]);
 
-  // Fahrer-Marker + Radius-Kreis
+  // Fahrer-Marker + Radius-Kreis – nur dieser Effect läuft bei GPS-Updates
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
@@ -107,6 +116,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
     const isFirstFix = !driverMarkerRef.current;
 
+    // Marker erstellen oder smooth bewegen (setPosition = kein Springen)
     if (!driverMarkerRef.current) {
       driverMarkerRef.current = new window.google.maps.Marker({
         position: driverLocation,
@@ -123,10 +133,11 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
         zIndex: 10,
       });
     } else {
+      // Nur Marker bewegen – Karte bleibt stabil
       driverMarkerRef.current.setPosition(driverLocation);
     }
 
-    // Radius-Kreis
+    // Radius-Kreis aktualisieren (ohne Karte zu zentrieren)
     if (radiusKm && radiusKm > 0) {
       if (!radiusCircleRef.current) {
         radiusCircleRef.current = new window.google.maps.Circle({
@@ -148,9 +159,19 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current = null;
     }
 
-    // Nur beim allerersten GPS-Fix zentrieren – danach nicht mehr springen
+    // Einmalig beim ersten GPS-Fix zentrieren
     if (isFirstFix && !hasCenteredRef.current) {
-      googleMapRef.current.panTo(driverLocation);
+      const data = markerDataRef.current;
+      if (data.length > 0) {
+        // Aktiver Auftrag: fitBounds mit Abholort, Zielort UND eigener Position
+        const bounds = new window.google.maps.LatLngBounds();
+        data.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
+        bounds.extend(driverLocation);
+        googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 80, left: 40, right: 40 });
+      } else {
+        // Nur eigene Position (Dashboard)
+        googleMapRef.current.panTo(driverLocation);
+      }
       hasCenteredRef.current = true;
     }
   }, [driverLocation, radiusKm]);
