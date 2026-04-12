@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { KONSTANZ_CENTER } from '@/lib/maps';
 
 interface Marker {
@@ -34,7 +34,7 @@ interface Props {
   locationPings?: LocationPing[];
 }
 
-// CSS für pulsierende Fahrer-Punkte (einmalig in den DOM injizieren)
+// CSS for driver dots and ping dots — injected once
 function ensurePulseStyles() {
   if (typeof document === 'undefined') return;
   if (document.getElementById('map-pulse-styles')) return;
@@ -100,53 +100,92 @@ export default function Map({
   const markersRef = useRef<google.maps.Marker[]>([]);
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
-  const driverOverlaysRef = useRef<HTMLDivElement[]>([]);
-  const pingOverlaysRef = useRef<HTMLDivElement[]>([]);
   const overlayViewRef = useRef<google.maps.OverlayView | null>(null);
   const hasCenteredRef = useRef(false);
-  // Track which ping timestamps have already been rendered to allow incremental updates
-  const renderedPingTimestampsRef = useRef<Set<number>>(new Set());
-  // Keep latest locationPings accessible inside effects without re-running them
-  const locationPingsRef = useRef<LocationPing[]>(locationPings);
-  locationPingsRef.current = locationPings;
 
-  // Karte initialisieren
+  // --- Driver overlays: managed imperatively, keyed by driver id ---
+  const driverOverlayMapRef = useRef<globalThis.Map<string, HTMLDivElement>>(new globalThis.Map());
+
+  // --- Ping overlays: managed incrementally ---
+  const pingOverlaysRef = useRef<HTMLDivElement[]>([]);
+  const renderedPingTimestampsRef = useRef<Set<number>>(new Set());
+
+  // Keep latest props in refs so effects/listeners can read current values
+  const locationPingsRef = useRef(locationPings);
+  locationPingsRef.current = locationPings;
+  const availableDriversRef = useRef(availableDrivers);
+  availableDriversRef.current = availableDrivers;
+
+  // Stable callback ref for onRouteCalculated
+  const onRouteCalculatedRef = useRef(onRouteCalculated);
+  onRouteCalculatedRef.current = onRouteCalculated;
+
+  // Helper: reposition a single overlay div to a lat/lng
+  const positionOverlay = useCallback((el: HTMLDivElement, lat: number, lng: number) => {
+    const ov = overlayViewRef.current;
+    if (!ov) return;
+    try {
+      const proj = ov.getProjection();
+      if (!proj) return;
+      const point = proj.fromLatLngToDivPixel(new window.google.maps.LatLng(lat, lng));
+      if (!point) return;
+      el.style.left = `${point.x}px`;
+      el.style.top = `${point.y}px`;
+    } catch { /* projection not ready */ }
+  }, []);
+
+  // ========== Initialize map ONCE ==========
   useEffect(() => {
     ensurePulseStyles();
     const init = () => {
-      if (!mapRef.current || !window.google?.maps) return;
-      if (googleMapRef.current) return;
+      if (!mapRef.current || !window.google?.maps || googleMapRef.current) return;
 
       googleMapRef.current = new window.google.maps.Map(mapRef.current, {
         center: KONSTANZ_CENTER,
         zoom: 14,
         disableDefaultUI: true,
         zoomControl: true,
+        gestureHandling: 'greedy',
         styles: [
           { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
         ],
       });
 
-      // OverlayView für Custom-HTML-Overlays (Fahrer-Punkte & Pings)
+      // OverlayView for custom HTML overlays (driver dots & pings)
       const ov = new window.google.maps.OverlayView();
       ov.onAdd = () => {};
       ov.draw = () => {};
       ov.onRemove = () => {};
       ov.setMap(googleMapRef.current);
       overlayViewRef.current = ov;
+
+      // Reposition all custom overlays on map pan/zoom
+      googleMapRef.current.addListener('bounds_changed', () => {
+        // Reposition driver dots
+        const drivers = availableDriversRef.current;
+        driverOverlayMapRef.current.forEach((el, driverId) => {
+          const driver = drivers.find((d) => d.id === driverId);
+          if (driver) {
+            positionOverlay(el, parseFloat(String(driver.latitude)), parseFloat(String(driver.longitude)));
+          }
+        });
+        // Reposition ping dots
+        const pings = locationPingsRef.current;
+        pingOverlaysRef.current.forEach((el) => {
+          const ts = Number(el.dataset.timestamp);
+          const ping = pings.find((p) => p.timestamp === ts);
+          if (ping) positionOverlay(el, ping.lat, ping.lng);
+        });
+      });
     };
 
-    if (window.google?.maps) {
-      init();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google?.maps) { clearInterval(interval); init(); }
-      }, 200);
-      return () => clearInterval(interval);
-    }
+    if (window.google?.maps) { init(); return; }
+    const iv = setInterval(() => { if (window.google?.maps) { clearInterval(iv); init(); } }, 200);
+    return () => clearInterval(iv);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Marker setzen — runs only when markers change, NOT when locationPings change
+  // ========== Pickup/Dropoff markers — only when markers change ==========
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
@@ -165,21 +204,23 @@ export default function Map({
           strokeColor: '#fff',
           strokeWeight: 2,
         },
-        label: marker.label ? { text: marker.label, color: '#fff', fontSize: '12px', fontWeight: 'bold' } : undefined,
+        label: marker.label
+          ? { text: marker.label, color: '#fff', fontSize: '12px', fontWeight: 'bold' }
+          : undefined,
       });
       markersRef.current.push(m);
     });
 
-    // fitBounds only once when markers are first set
+    // fitBounds only ONCE when markers are first set
     if (markers.length > 0 && !hasCenteredRef.current) {
       const bounds = new window.google.maps.LatLngBounds();
       markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
       googleMapRef.current.fitBounds(bounds, { top: 60, bottom: 60, left: 40, right: 40 });
       hasCenteredRef.current = true;
     }
-  }, [markers]); // locationPings intentionally NOT a dependency
+  }, [markers]);
 
-  // Route zeichnen
+  // ========== Route — only when markers change ==========
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
     if (!showRoute || markers.length < 2) return;
@@ -192,8 +233,7 @@ export default function Map({
       directionsRendererRef.current.setMap(googleMapRef.current);
     }
 
-    const service = new window.google.maps.DirectionsService();
-    service.route(
+    new window.google.maps.DirectionsService().route(
       {
         origin: { lat: markers[0].lat, lng: markers[0].lng },
         destination: { lat: markers[markers.length - 1].lat, lng: markers[markers.length - 1].lng },
@@ -204,15 +244,15 @@ export default function Map({
         if (status === 'OK' && result) {
           directionsRendererRef.current!.setDirections(result);
           const leg = result.routes[0]?.legs[0];
-          if (leg?.distance?.value && onRouteCalculated) {
-            onRouteCalculated(leg.distance.value / 1000);
+          if (leg?.distance?.value && onRouteCalculatedRef.current) {
+            onRouteCalculatedRef.current(leg.distance.value / 1000);
           }
         }
       }
     );
-  }, [markers, showRoute, onRouteCalculated]);
+  }, [markers, showRoute]);
 
-  // Fahrer-Marker (live tracking)
+  // ========== Driver marker for live tracking (Track page) ==========
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
@@ -241,76 +281,76 @@ export default function Map({
     }
   }, [driverLocation]);
 
-  // Verfügbare Fahrer als pulsierende Punkte
+  // ========== Available drivers as pulsing dots (Book page) ==========
+  // Imperative update: add new dots, move existing dots, remove gone dots.
+  // NEVER recreate all overlays — that causes flashing and map reset.
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map || !window.google?.maps) return;
 
-    // Alte Overlays entfernen
-    driverOverlaysRef.current.forEach((el) => el.parentNode?.removeChild(el));
-    driverOverlaysRef.current = [];
+    const ov = overlayViewRef.current;
+    if (!ov) return;
 
-    if (availableDrivers.length === 0) return;
-
-    // Warten bis OverlayView projection verfügbar
-    const render = () => {
-      const ov = overlayViewRef.current;
-      if (!ov) return;
+    // Wait for overlay projection to be ready
+    const update = () => {
       try {
         const proj = ov.getProjection();
         if (!proj) return;
-
         const pane = ov.getPanes()?.overlayMouseTarget;
         if (!pane) return;
 
+        const currentIds = new Set(availableDrivers.map((d) => d.id));
+        const overlayMap = driverOverlayMapRef.current;
+
+        // Remove dots for drivers that are no longer available
+        overlayMap.forEach((el, id) => {
+          if (!currentIds.has(id)) {
+            el.parentNode?.removeChild(el);
+            overlayMap.delete(id);
+          }
+        });
+
+        // Add or move dots for current drivers
         availableDrivers.forEach((driver) => {
           const lat = parseFloat(String(driver.latitude));
           const lng = parseFloat(String(driver.longitude));
           if (isNaN(lat) || isNaN(lng)) return;
 
-          const point = proj.fromLatLngToDivPixel(
-            new window.google.maps.LatLng(lat, lng)
-          );
-          if (!point) return;
-
-          const el = document.createElement('div');
-          el.className = 'driver-dot-pulse';
-          el.style.left = `${point.x}px`;
-          el.style.top = `${point.y}px`;
-          el.title = `${driver.vehicle_type === 'bicycle' ? 'Fahrrad' : 'Lastenrad'} Kurier`;
-          pane.appendChild(el);
-          driverOverlaysRef.current.push(el);
+          let el = overlayMap.get(driver.id);
+          if (!el) {
+            // Create new dot
+            el = document.createElement('div');
+            el.className = 'driver-dot-pulse';
+            el.title = `${driver.vehicle_type === 'bicycle' ? 'Fahrrad' : 'Lastenrad'} Kurier`;
+            pane.appendChild(el);
+            overlayMap.set(driver.id, el);
+          }
+          // Position (move) the dot
+          positionOverlay(el, lat, lng);
         });
-      } catch { /* Projection noch nicht bereit */ }
+      } catch { /* projection not ready yet */ }
     };
 
-    // Kurz warten und dann rendern; auch bei Kartenänderungen aktualisieren
-    const timeout = setTimeout(render, 300);
-    const listener = map.addListener('bounds_changed', render);
+    // Run after a brief delay to ensure projection is ready
+    const timeout = setTimeout(update, 300);
+    return () => clearTimeout(timeout);
+  }, [availableDrivers, positionOverlay]);
 
-    return () => {
-      clearTimeout(timeout);
-      window.google?.maps.event.removeListener(listener);
-    };
-  }, [availableDrivers]);
-
-  // Location Pings — incremental: only add NEW pings, never recreate all overlays
+  // ========== Location Pings — incremental (Track page) ==========
   useEffect(() => {
     const map = googleMapRef.current;
     if (!map || !window.google?.maps) return;
     if (locationPings.length === 0) return;
 
-    // Find only the pings we haven't rendered yet
     const newPings = locationPings.filter(
       (p) => !renderedPingTimestampsRef.current.has(p.timestamp)
     );
     if (newPings.length === 0) return;
 
-    // Sort all pings to determine newest for styling
     const sorted = [...locationPings].sort((a, b) => a.timestamp - b.timestamp);
     const newestTimestamp = sorted[sorted.length - 1]?.timestamp;
 
-    // If the newest ping changed, demote the old "newest" overlay's styling
+    // Demote old "newest" dots
     if (newPings.some((p) => p.timestamp === newestTimestamp)) {
       pingOverlaysRef.current.forEach((el) => {
         if (el.dataset.newest === 'true') {
@@ -336,12 +376,6 @@ export default function Map({
 
         newPings.forEach((ping) => {
           const isNewest = ping.timestamp === newestTimestamp;
-
-          const point = proj.fromLatLngToDivPixel(
-            new window.google.maps.LatLng(ping.lat, ping.lng)
-          );
-          if (!point) return;
-
           const size = isNewest ? 16 : 10;
           const color = isNewest ? '#22C55E' : 'rgba(156,163,175,0.7)';
           const border = isNewest ? '2.5px solid white' : '1.5px solid rgba(255,255,255,0.5)';
@@ -351,24 +385,27 @@ export default function Map({
           el.className = `ping-dot${isNewest ? ' ping-dot-new' : ''}`;
           el.dataset.newest = isNewest ? 'true' : 'false';
           el.dataset.timestamp = String(ping.timestamp);
-          el.style.cssText = `
-            left: ${point.x}px;
-            top: ${point.y}px;
-            width: ${size}px;
-            height: ${size}px;
-            background: ${color};
-            border: ${border};
-            box-shadow: ${shadow};
-            z-index: ${isNewest ? 10 : 1};
-          `;
-          pane.appendChild(el);
-          pingOverlaysRef.current.push(el);
-          renderedPingTimestampsRef.current.add(ping.timestamp);
+
+          const point = proj.fromLatLngToDivPixel(new window.google.maps.LatLng(ping.lat, ping.lng));
+          if (point) {
+            el.style.cssText = `
+              left: ${point.x}px;
+              top: ${point.y}px;
+              width: ${size}px;
+              height: ${size}px;
+              background: ${color};
+              border: ${border};
+              box-shadow: ${shadow};
+              z-index: ${isNewest ? 10 : 1};
+            `;
+            pane.appendChild(el);
+            pingOverlaysRef.current.push(el);
+            renderedPingTimestampsRef.current.add(ping.timestamp);
+          }
         });
 
-        // Prune old overlays if we exceed MAX_PINGS to avoid memory leaks
-        const MAX_OVERLAY_COUNT = 10;
-        while (pingOverlaysRef.current.length > MAX_OVERLAY_COUNT) {
+        // Prune old overlays (keep max 10)
+        while (pingOverlaysRef.current.length > 10) {
           const oldest = pingOverlaysRef.current.shift();
           if (oldest) {
             oldest.parentNode?.removeChild(oldest);
@@ -376,39 +413,16 @@ export default function Map({
             if (!isNaN(ts)) renderedPingTimestampsRef.current.delete(ts);
           }
         }
-      } catch { /* Projection noch nicht bereit */ }
+      } catch { /* projection not ready */ }
     };
 
     const timeout = setTimeout(renderNewPings, 100);
-    const listener = map.addListener('bounds_changed', () => {
-      // On map pan/zoom, reposition all existing ping overlays
-      const ov = overlayViewRef.current;
-      if (!ov) return;
-      try {
-        const proj = ov.getProjection();
-        if (!proj) return;
-        const allPings = locationPingsRef.current;
-        pingOverlaysRef.current.forEach((el) => {
-          const ts = Number(el.dataset.timestamp);
-          const ping = allPings.find((p) => p.timestamp === ts);
-          if (!ping) return;
-          const point = proj.fromLatLngToDivPixel(
-            new window.google.maps.LatLng(ping.lat, ping.lng)
-          );
-          if (!point) return;
-          el.style.left = `${point.x}px`;
-          el.style.top = `${point.y}px`;
-        });
-      } catch { /* ignore */ }
-    });
-
-    return () => {
-      clearTimeout(timeout);
-      window.google?.maps.event.removeListener(listener);
-    };
+    return () => clearTimeout(timeout);
   }, [locationPings]);
 
-  return <div ref={containerRef} className={`w-full rounded-2xl overflow-hidden ${className}`}>
-    <div ref={mapRef} className="w-full h-full" />
-  </div>;
+  return (
+    <div ref={containerRef} className={`w-full rounded-2xl overflow-hidden ${className}`}>
+      <div ref={mapRef} className="w-full h-full" />
+    </div>
+  );
 }

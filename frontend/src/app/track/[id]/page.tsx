@@ -84,8 +84,10 @@ export default function TrackPage() {
       socket = getSocket();
 
       socket.emit('ride:subscribe', { rideId: id });
+      console.log('[Track] ride:subscribe gesendet für', id);
 
       socket.on('ride:accepted', (data: { ride: Ride }) => {
+        console.log('[Track] ride:accepted empfangen', data.ride.id);
         setRide(data.ride);
       });
 
@@ -99,8 +101,9 @@ export default function TrackPage() {
         }
       });
 
-      // Fahrer Position (30-Sekunden Pings)
+      // Fahrer Position Pings
       socket.on('driver:location_update', (data: { rideId: string; lat?: number; lng?: number; latitude?: number; longitude?: number }) => {
+        console.log('[Track] driver:location_update empfangen', data);
         if (data.rideId !== id) return;
         const lat = data.lat ?? data.latitude ?? 0;
         const lng = data.lng ?? data.longitude ?? 0;
