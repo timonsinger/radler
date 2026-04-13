@@ -26,10 +26,10 @@ app.use(helmet());
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 
-// Rate Limiting: 100 Anfragen pro 15 Minuten
+// Rate Limiting: 1000 Anfragen pro 15 Minuten
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte warte kurz.' },
