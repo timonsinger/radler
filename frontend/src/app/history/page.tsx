@@ -87,31 +87,48 @@ export default function HistoryPage() {
             onClick={() => setSelectedRide(ride)}
             className="w-full bg-white rounded-2xl p-4 shadow-sm text-left active:bg-gray-50 transition-colors"
           >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-gray-400">{formatDate(ride.created_at)}</p>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                ride.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-              }`}>
-                {ride.status === 'delivered' ? 'Zugestellt' : 'Storniert'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-              <p className="text-sm text-gray-900 truncate">{truncate(ride.pickup_address, 35)}</p>
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-              <p className="text-sm text-gray-900 truncate">{truncate(ride.dropoff_address, 35)}</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-900">{formatPrice(Number(ride.price))}</p>
-              {ride.rating && (
-                <div className="flex">
-                  {[1,2,3,4,5].map((s) => (
-                    <span key={s} className={`text-sm ${s <= ride.rating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
-                  ))}
+            <div className="flex gap-3">
+              {ride.delivery_photo_url ? (
+                <img
+                  src={`${apiBase}${ride.delivery_photo_url}`}
+                  alt=""
+                  className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                />
+              ) : ride.pickup_photo_url ? (
+                <img
+                  src={`${apiBase}${ride.pickup_photo_url}`}
+                  alt=""
+                  className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                />
+              ) : null}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-gray-400">{formatDate(ride.created_at)}</p>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    ride.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                  }`}>
+                    {ride.status === 'delivered' ? 'Zugestellt' : 'Storniert'}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                  <p className="text-sm text-gray-900 truncate">{truncate(ride.pickup_address, 30)}</p>
+                </div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
+                  <p className="text-sm text-gray-900 truncate">{truncate(ride.dropoff_address, 30)}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-gray-900">{formatPrice(Number(ride.price))}</p>
+                  {ride.rating && (
+                    <div className="flex">
+                      {[1,2,3,4,5].map((s) => (
+                        <span key={s} className={`text-sm ${s <= ride.rating! ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </button>
         ))}
