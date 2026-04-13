@@ -16,9 +16,10 @@ interface Props {
   showRoute?: boolean;
   radiusKm?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export default function Map({ markers = [], driverLocation, showRoute, radiusKm, className = '' }: Props) {
+export default function Map({ markers = [], driverLocation, showRoute, radiusKm, className = '', style }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -148,5 +149,5 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     googleMapRef.current.panTo(driverLocation);
   }, [driverLocation, radiusKm]);
 
-  return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} />;
+  return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} style={style} />;
 }
