@@ -104,9 +104,9 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
   const canDeliver = !needsPhoto || !!photoUrl;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Karte nimmt obere Hälfte ein */}
-      <div className="flex-shrink-0" style={{ height: '50vh' }}>
+    <div className="min-h-screen bg-gray-100">
+      {/* Karte */}
+      <div style={{ height: '40vh' }}>
         <Map
           markers={markers}
           driverLocation={driverLocation}
@@ -116,56 +116,57 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
         />
       </div>
 
-      {/* Info & Buttons */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-t-3xl -mt-4 shadow-lg relative z-10">
+      {/* Info & Buttons — überlappt die Karte leicht */}
+      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 shadow-xl min-h-[60vh]">
         {/* Griff */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        <div className="flex justify-center pt-3 pb-2">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
 
-        <div className="px-5 pt-3 pb-6">
-          {/* Status Badge */}
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-5 pt-2 pb-8">
+          {/* Status Badge + Preis */}
+          <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Aktiver Auftrag</p>
-              <p className="text-xl font-black text-gray-900">{formatPrice(Number(ride.price))}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Aktiver Auftrag</p>
+              <p className="text-2xl font-black text-gray-900">{formatPrice(Number(ride.price))}</p>
             </div>
-            <span className={`px-3 py-1.5 rounded-full text-xs font-bold text-white ${
+            <span className={`px-4 py-2 rounded-full text-xs font-bold text-white shadow-sm ${
               ride.status === 'accepted' ? 'bg-warning' : 'bg-primary'
             }`}>
-              {ride.status === 'accepted' ? 'Zur Abholung' : 'Abgeholt'}
+              {ride.status === 'accepted' ? 'Zur Abholung' : 'Unterwegs'}
             </span>
           </div>
 
           {/* Adressen */}
-          <div className="space-y-2 mb-4">
-            <div className="flex items-start gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-online mt-1.5 flex-shrink-0" />
+          <div className="mb-5">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-3 h-3 rounded-full bg-green-500 mt-1 flex-shrink-0 shadow-sm" />
               <div>
-                <p className="text-xs text-gray-400">Abholung</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase">Abholung</p>
                 <p className="text-sm font-semibold text-gray-900">{ride.pickup_address}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-error mt-1.5 flex-shrink-0" />
+            <div className="ml-1.5 border-l-2 border-dashed border-gray-200 h-3" />
+            <div className="flex items-start gap-3 mt-3">
+              <div className="w-3 h-3 rounded-full bg-red-500 mt-1 flex-shrink-0 shadow-sm" />
               <div>
-                <p className="text-xs text-gray-400">Ziel</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase">Ziel</p>
                 <p className="text-sm font-semibold text-gray-900">{ride.dropoff_address}</p>
               </div>
             </div>
           </div>
 
           {/* Infos */}
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-3 mb-5">
             {ride.customer_name && (
-              <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-400">Kunde</p>
-                <p className="text-sm font-bold text-gray-900">{ride.customer_name}</p>
+              <div className="flex-1 bg-gray-50 rounded-2xl p-3 text-center">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase">Kunde</p>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">{ride.customer_name}</p>
               </div>
             )}
-            <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-400">Fahrzeug</p>
-              <p className="text-sm font-bold">{ride.vehicle_type === 'bicycle' ? '🚲 Rad' : '🚛 Lastenrad'}</p>
+            <div className="flex-1 bg-gray-50 rounded-2xl p-3 text-center">
+              <p className="text-[10px] text-gray-400 font-semibold uppercase">Fahrzeug</p>
+              <p className="text-sm font-bold mt-0.5">{ride.vehicle_type === 'bicycle' ? '🚲 Rad' : '🚛 Lastenrad'}</p>
             </div>
           </div>
 
@@ -229,7 +230,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
             href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3.5 rounded-2xl mb-3 active:bg-gray-100"
+            className="flex items-center justify-center gap-2 w-full bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-4 rounded-2xl mb-4 active:bg-gray-100 transition-colors"
           >
             <span>🗺</span>
             In Google Maps navigieren
@@ -240,7 +241,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
             <button
               onClick={handleAction}
               disabled={loading || !canDeliver}
-              className={`w-full ${action.color} text-white font-black text-lg py-5 rounded-2xl shadow-lg disabled:opacity-40 active:opacity-80 transition-all`}
+              className={`w-full ${action.color} text-white font-black text-lg py-5 rounded-2xl shadow-lg disabled:opacity-40 active:scale-[0.98] transition-all`}
             >
               {loading ? 'Bitte warten...' : `✓ ${action.label}`}
             </button>
