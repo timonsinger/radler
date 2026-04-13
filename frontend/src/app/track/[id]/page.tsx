@@ -36,6 +36,9 @@ interface Ride {
   rating_comment?: string;
   scheduled_at?: string;
   is_scheduled?: boolean;
+  service_type?: string;
+  passenger_count?: number;
+  tour_duration_hours?: number;
 }
 
 interface LocationPing {
@@ -311,6 +314,8 @@ export default function TrackPage() {
   const isScheduled = ride.status === 'scheduled' && ride.is_scheduled;
   const isDelivered = ride.status === 'delivered';
   const isExpired = ride.status === 'expired';
+  const isRikscha = ['rikscha_taxi', 'rikscha_tour'].includes(ride.service_type || '');
+  const isTour = ride.service_type === 'rikscha_tour';
   const hasExistingRating = !!(existingRating || ride.rating);
   const displayRating = existingRating?.rating || ride.rating || 0;
   const displayComment = existingRating?.comment || ride.rating_comment || '';
@@ -327,7 +332,9 @@ export default function TrackPage() {
           </div>
         </Link>
         <div>
-          <h1 className="font-heading text-lg font-bold text-radler-ink-800">Auftrag verfolgen</h1>
+          <h1 className="font-heading text-lg font-bold text-radler-ink-800">
+            {isRikscha ? (isTour ? '🗺 Tour verfolgen' : '🛺 Fahrt verfolgen') : 'Auftrag verfolgen'}
+          </h1>
           <p className="text-xs text-gray-500">{getStatusLabel(ride.status)}</p>
         </div>
       </div>
@@ -389,20 +396,45 @@ export default function TrackPage() {
         <div className="flex items-start gap-3">
           <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
           <div>
-            <p className="text-xs text-gray-400">Abholung</p>
+            <p className="text-xs text-gray-400">{isRikscha ? 'Treffpunkt' : 'Abholung'}</p>
             <p className="text-sm text-gray-900">{ride.pickup_address}</p>
           </div>
         </div>
         <div className="flex items-start gap-3">
           <div className="w-2 h-2 rounded-full bg-error mt-1.5 flex-shrink-0" />
           <div>
-            <p className="text-xs text-gray-400">Ziel</p>
+            <p className="text-xs text-gray-400">{isTour ? 'Endpunkt' : 'Ziel'}</p>
             <p className="text-sm text-gray-900">{ride.dropoff_address}</p>
           </div>
         </div>
 
-        {/* Übergabe-Infos */}
-        {ride.pickup_method && (
+        {/* Rikscha-Info */}
+        {isRikscha && (
+          <div className="pt-2 border-t border-gray-100 flex gap-3">
+            <div className="flex-1 bg-gray-50 rounded-xl p-2 text-center">
+              <p className="text-xs text-gray-400">Fahrgäste</p>
+              <p className="text-sm font-bold">{ride.passenger_count || 1} Pers.</p>
+            </div>
+            {isTour && ride.tour_duration_hours && (
+              <div className="flex-1 bg-gray-50 rounded-xl p-2 text-center">
+                <p className="text-xs text-gray-400">Tour-Dauer</p>
+                <p className="text-sm font-bold">{ride.tour_duration_hours} Std.</p>
+              </div>
+            )}
+            <div className="flex-1 bg-gray-50 rounded-xl p-2 text-center">
+              <p className="text-xs text-gray-400">Fahrzeug</p>
+              <p className="text-sm font-bold">
+                {ride.vehicle_type === 'rikscha' ? '🛺 Rikscha'
+                  : ride.vehicle_type === 'rikscha_xl' ? '🛺 XL'
+                  : ride.vehicle_type === 'tandem' ? '🚲🚲 Tandem'
+                  : ride.vehicle_type}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Übergabe-Infos — nur für Kurier */}
+        {!isRikscha && ride.pickup_method && (
           <div className="pt-2 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-400">Abholung</p>
@@ -416,7 +448,7 @@ export default function TrackPage() {
             )}
           </div>
         )}
-        {ride.delivery_method && (
+        {!isRikscha && ride.delivery_method && (
           <div className="pt-2 border-t border-gray-100">
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-400">Zustellung</p>
@@ -463,7 +495,14 @@ export default function TrackPage() {
                     <span className="text-gray-300 mx-1">·</span>
                   </>
                 )}
-                <span className="text-xs text-gray-500">{driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</span>
+                <span className="text-xs text-gray-500">
+                  {driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad'
+                    : driverProfile.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad'
+                    : driverProfile.vehicle_type === 'rikscha' ? '🛺 Rikscha'
+                    : driverProfile.vehicle_type === 'rikscha_xl' ? '🛺 Rikscha XL'
+                    : driverProfile.vehicle_type === 'tandem' ? '🚲🚲 Tandem'
+                    : '🚲 Fahrrad'}
+                </span>
               </div>
               {driverProfile.description && (
                 <p className="text-xs text-gray-400 mt-1 line-clamp-1">{driverProfile.description}</p>
@@ -481,10 +520,15 @@ export default function TrackPage() {
         <div className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-lg">{ride.vehicle_type === 'bicycle' ? '🚲' : '🚛'}</span>
+              <span className="text-lg">
+                {ride.vehicle_type === 'rikscha' || ride.vehicle_type === 'rikscha_xl' ? '🛺'
+                  : ride.vehicle_type === 'tandem' ? '🚲🚲'
+                  : ride.vehicle_type === 'cargo_bike' ? '🚛'
+                  : '🚲'}
+              </span>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Dein Kurier</p>
+              <p className="text-xs text-gray-400">{isRikscha ? 'Dein Fahrer' : 'Dein Kurier'}</p>
               <p className="text-sm font-semibold text-gray-900">{ride.driver_name}</p>
             </div>
           </div>
@@ -502,8 +546,12 @@ export default function TrackPage() {
               </svg>
             </div>
             <div>
-              <p className="font-bold text-gray-900">Dein Paket wurde zugestellt!</p>
-              <p className="text-xs text-gray-500">Lieferung erfolgreich abgeschlossen</p>
+              <p className="font-bold text-gray-900">
+                {isRikscha ? 'Deine Fahrt ist beendet!' : 'Dein Paket wurde zugestellt!'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {isRikscha ? (isTour ? 'Tour erfolgreich abgeschlossen' : 'Fahrt erfolgreich abgeschlossen') : 'Lieferung erfolgreich abgeschlossen'}
+              </p>
             </div>
           </div>
 
@@ -533,8 +581,12 @@ export default function TrackPage() {
             <>
               {/* Bewertung: Formular */}
               <div className="border-t border-gray-100 pt-4">
-                <p className="text-sm font-semibold text-gray-700 mb-1 text-center">Wie war dein Kurier?</p>
-                <p className="text-xs text-gray-400 text-center mb-4">Bewerte die Lieferung</p>
+                <p className="text-sm font-semibold text-gray-700 mb-1 text-center">
+                  {isRikscha ? 'Wie war deine Fahrt?' : 'Wie war dein Kurier?'}
+                </p>
+                <p className="text-xs text-gray-400 text-center mb-4">
+                  {isRikscha ? 'Bewerte die Fahrt' : 'Bewerte die Lieferung'}
+                </p>
 
                 <div className="flex justify-center gap-3 mb-4">
                   {[1,2,3,4,5].map((s) => (
@@ -586,8 +638,8 @@ export default function TrackPage() {
         </div>
       )}
 
-      {/* Abhol-Foto */}
-      {ride.pickup_photo_url && (
+      {/* Abhol-Foto — nur für Kurier */}
+      {!isRikscha && ride.pickup_photo_url && (
         <div className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm">
           <p className="text-sm font-semibold text-gray-700 mb-3">Abholung dokumentiert:</p>
           <img
@@ -602,9 +654,13 @@ export default function TrackPage() {
       {isExpired && (
         <div className="mx-4 mt-3 bg-white rounded-3xl p-5 shadow-sm text-center">
           <div className="text-5xl mb-3">😔</div>
-          <p className="font-bold text-gray-900 mb-1">Kein Kurier gefunden</p>
+          <p className="font-bold text-gray-900 mb-1">
+            {isRikscha ? 'Kein Fahrer gefunden' : 'Kein Kurier gefunden'}
+          </p>
           <p className="text-sm text-gray-500 mb-5">
-            Leider konnte innerhalb von 10 Minuten kein verfügbarer Kurier gefunden werden.
+            {isRikscha
+              ? 'Leider konnte innerhalb von 10 Minuten kein verfügbarer Fahrer gefunden werden.'
+              : 'Leider konnte innerhalb von 10 Minuten kein verfügbarer Kurier gefunden werden.'}
           </p>
           <Link href="/book">
             <button className="w-full bg-primary text-primary-fg font-semibold py-4 rounded-2xl active:bg-primary-dark mb-3">
@@ -629,7 +685,7 @@ export default function TrackPage() {
             disabled={cancelling}
             className="w-full border-2 border-error text-error font-semibold py-3.5 rounded-2xl active:bg-red-50 disabled:opacity-50 transition-colors"
           >
-            {cancelling ? 'Stornieren...' : 'Auftrag stornieren'}
+            {cancelling ? 'Stornieren...' : (isRikscha ? 'Fahrt stornieren' : 'Auftrag stornieren')}
           </button>
         </div>
       )}
@@ -699,7 +755,14 @@ export default function TrackPage() {
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Fahrzeug</p>
-                  <p className="text-sm font-bold mt-0.5">{driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</p>
+                  <p className="text-sm font-bold mt-0.5">
+                    {driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad'
+                      : driverProfile.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad'
+                      : driverProfile.vehicle_type === 'rikscha' ? '🛺 Rikscha'
+                      : driverProfile.vehicle_type === 'rikscha_xl' ? '🛺 XL'
+                      : driverProfile.vehicle_type === 'tandem' ? '🚲🚲 Tandem'
+                      : '🚲 Fahrrad'}
+                  </p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Fahrten</p>

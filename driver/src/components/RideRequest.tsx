@@ -15,6 +15,9 @@ interface Ride {
   price: number;
   driver_payout?: number;
   vehicle_type: string;
+  service_type?: string;
+  passenger_count?: number;
+  tour_duration_hours?: number;
 }
 
 interface Props {
@@ -58,7 +61,9 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
         {/* Header */}
         <div className="px-5 pt-2 pb-3 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-warning uppercase tracking-wider">⚡ Neuer Auftrag</p>
+            <p className="text-xs font-semibold text-warning uppercase tracking-wider">
+              {ride.service_type === 'rikscha_taxi' ? '🛺 Rikscha-Taxi' : ride.service_type === 'rikscha_tour' ? '🗺 Stadt-Tour' : '⚡ Neuer Auftrag'}
+            </p>
             <p className="text-xl font-black text-gray-900">{formatPrice(Number(ride.driver_payout || ride.price * 0.85))}</p>
             <p className="text-xs text-gray-400">Dein Verdienst</p>
           </div>
@@ -101,9 +106,9 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
 
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'Distanz', value: ride.distance_km ? `${Number(ride.distance_km).toFixed(1)} km` : '–' },
+              { label: ride.service_type === 'rikscha_tour' ? 'Dauer' : 'Distanz', value: ride.service_type === 'rikscha_tour' ? `${ride.tour_duration_hours} Std.` : ride.distance_km ? `${Number(ride.distance_km).toFixed(1)} km` : '–' },
               { label: 'Dein Verdienst', value: formatPrice(Number(ride.driver_payout || ride.price * 0.85)) },
-              { label: 'Fahrzeug', value: ride.vehicle_type === 'bicycle' ? '🚲 Rad' : '🚛 Lastenrad' },
+              { label: ride.service_type?.startsWith('rikscha') ? 'Fahrgäste' : 'Fahrzeug', value: ride.service_type?.startsWith('rikscha') ? `${ride.passenger_count || 1} Pers.` : ride.vehicle_type === 'bicycle' ? '🚲 Rad' : ride.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad' : ride.vehicle_type === 'rikscha' ? '🛺 Rikscha' : ride.vehicle_type === 'rikscha_xl' ? '🛺 XL' : '🚲🚲 Tandem' },
             ].map((item) => (
               <div key={item.label} className="bg-gray-50 rounded-xl p-2.5 text-center">
                 <p className="text-xs text-gray-400">{item.label}</p>

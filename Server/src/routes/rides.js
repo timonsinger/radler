@@ -52,19 +52,33 @@ async function getSettings() {
 }
 
 // Preisberechnung: Grundgebühr + km-Preis, mit Mindestpreis
-async function calculatePrice(vehicleType, distanceKm) {
+async function calculatePrice(vehicleType, distanceKm, serviceType = 'courier', tourDurationHours = null) {
   const distance = parseFloat(distanceKm) || 0;
   const s = await getSettings();
-  if (vehicleType === 'bicycle') {
-    const base = parseFloat(s.bicycle_base_fee) || 4.00;
-    const perKm = parseFloat(s.bicycle_per_km) || 1.50;
-    const min = parseFloat(s.bicycle_min_price) || 5.50;
+
+  if (serviceType === 'courier') {
+    // Bestehende Kurier-Logik
+    if (vehicleType === 'bicycle') {
+      const base = parseFloat(s.bicycle_base_fee) || 4.00;
+      const perKm = parseFloat(s.bicycle_per_km) || 1.50;
+      const min = parseFloat(s.bicycle_min_price) || 5.50;
+      return Math.max(min, base + distance * perKm);
+    } else if (vehicleType === 'cargo_bike') {
+      const base = parseFloat(s.cargo_base_fee) || 6.00;
+      const perKm = parseFloat(s.cargo_per_km) || 2.00;
+      const min = parseFloat(s.cargo_min_price) || 8.00;
+      return Math.max(min, base + distance * perKm);
+    }
+    return 5.50;
+  } else if (serviceType === 'rikscha_taxi') {
+    const base = parseFloat(s[`${vehicleType}_taxi_base_fee`]) || 5.00;
+    const perKm = parseFloat(s[`${vehicleType}_taxi_per_km`]) || 4.00;
+    const min = parseFloat(s[`${vehicleType}_taxi_min_price`]) || 13.00;
     return Math.max(min, base + distance * perKm);
-  } else if (vehicleType === 'cargo_bike') {
-    const base = parseFloat(s.cargo_base_fee) || 6.00;
-    const perKm = parseFloat(s.cargo_per_km) || 2.00;
-    const min = parseFloat(s.cargo_min_price) || 8.00;
-    return Math.max(min, base + distance * perKm);
+  } else if (serviceType === 'rikscha_tour') {
+    const hours = parseFloat(tourDurationHours) || 1;
+    const perHour = parseFloat(s[`${vehicleType}_tour_per_hour`]) || 40.00;
+    return hours * perHour;
   }
   return 5.50;
 }
@@ -103,7 +117,19 @@ router.post('/', async (req, res) => {
       delivery_method,
       delivery_code,
       scheduled_at,
+      service_type,
+      passenger_count,
+      tour_duration_hours,
+      tour_start_time,
+      tour_note,
     } = req.body;
+
+    // Service-Type validieren (Default: courier)
+    const serviceType = service_type || 'courier';
+    if (!['courier', 'rikscha_taxi', 'rikscha_tour'].includes(serviceType)) {
+      return res.status(400).json({ error: 'service_type muss courier, rikscha_taxi oder rikscha_tour sein' });
+    }
+    const isRikschaService = ['rikscha_taxi', 'rikscha_tour'].includes(serviceType);
 
     if (!pickup_address || !pickup_lat || !pickup_lng) {
       return res.status(400).json({ error: 'Abholadresse fehlt oder ist unvollständig' });
@@ -111,39 +137,73 @@ router.post('/', async (req, res) => {
     if (!dropoff_address || !dropoff_lat || !dropoff_lng) {
       return res.status(400).json({ error: 'Zieladresse fehlt oder ist unvollständig' });
     }
-    if (!vehicle_type || !['bicycle', 'cargo_bike'].includes(vehicle_type)) {
-      return res.status(400).json({ error: 'Fahrzeugtyp muss bicycle oder cargo_bike sein' });
+
+    // Fahrzeugtyp-Validierung je nach Service
+    const allowedVehicles = isRikschaService
+      ? ['rikscha', 'rikscha_xl', 'tandem']
+      : ['bicycle', 'cargo_bike'];
+    if (!vehicle_type || !allowedVehicles.includes(vehicle_type)) {
+      return res.status(400).json({ error: `Fahrzeugtyp muss ${allowedVehicles.join(' oder ')} sein` });
     }
 
-    // Pickup/Delivery Method validieren
-    const pMethod = pickup_method || 'code';
-    const dMethod = delivery_method || 'code';
-    if (!['code', 'photo'].includes(pMethod)) {
-      return res.status(400).json({ error: 'pickup_method muss code oder photo sein' });
-    }
-    if (!['code', 'photo'].includes(dMethod)) {
-      return res.status(400).json({ error: 'delivery_method muss code oder photo sein' });
-    }
-    if (pMethod === 'code' && (!pickup_code || !/^\d{4}$/.test(pickup_code))) {
-      return res.status(400).json({ error: 'pickup_code muss 4 Ziffern sein' });
-    }
-    if (dMethod === 'code' && (!delivery_code || !/^\d{4}$/.test(delivery_code))) {
-      return res.status(400).json({ error: 'delivery_code muss 4 Ziffern sein' });
+    // Rikscha-spezifische Validierungen
+    const passengerCount = parseInt(passenger_count) || 1;
+    if (isRikschaService) {
+      // Kapazität je Fahrzeugtyp
+      const maxPassengers = { rikscha: 2, rikscha_xl: 4, tandem: 1 };
+      const max = maxPassengers[vehicle_type] || 2;
+      if (passengerCount < 1 || passengerCount > max) {
+        return res.status(400).json({ error: `Passagieranzahl muss zwischen 1 und ${max} für ${vehicle_type} sein` });
+      }
     }
 
-    const price = await calculatePrice(vehicle_type, distance_km);
+    if (serviceType === 'rikscha_tour') {
+      const duration = parseFloat(tour_duration_hours);
+      if (!duration || duration < 0.5 || duration > 8.0) {
+        return res.status(400).json({ error: 'tour_duration_hours muss zwischen 0.5 und 8.0 sein' });
+      }
+      if (!tour_start_time) {
+        return res.status(400).json({ error: 'tour_start_time ist für Rikscha-Touren erforderlich' });
+      }
+    }
+
+    // Pickup/Delivery Method validieren — für Rikscha-Services nicht erforderlich
+    let pMethod = pickup_method || 'code';
+    let dMethod = delivery_method || 'code';
+    if (isRikschaService) {
+      // Rikscha: keine Code-/Foto-Verifizierung nötig
+      pMethod = pickup_method || 'code';
+      dMethod = delivery_method || 'code';
+    } else {
+      if (!['code', 'photo'].includes(pMethod)) {
+        return res.status(400).json({ error: 'pickup_method muss code oder photo sein' });
+      }
+      if (!['code', 'photo'].includes(dMethod)) {
+        return res.status(400).json({ error: 'delivery_method muss code oder photo sein' });
+      }
+      if (pMethod === 'code' && (!pickup_code || !/^\d{4}$/.test(pickup_code))) {
+        return res.status(400).json({ error: 'pickup_code muss 4 Ziffern sein' });
+      }
+      if (dMethod === 'code' && (!delivery_code || !/^\d{4}$/.test(delivery_code))) {
+        return res.status(400).json({ error: 'delivery_code muss 4 Ziffern sein' });
+      }
+    }
+
+    const price = await calculatePrice(vehicle_type, distance_km, serviceType, tour_duration_hours);
     const s = await getSettings();
     const commission = parseFloat(s.platform_commission) || 0.15;
     const platformFee = parseFloat((price * commission).toFixed(2));
     const driverPayout = parseFloat((price * (1 - commission)).toFixed(2));
 
     // Geplante Lieferung: Status = 'scheduled', sonst 'pending'
-    const isScheduled = !!scheduled_at;
+    // Rikscha-Tour mit tour_start_time wird auch als geplant behandelt
+    const effectiveScheduledAt = scheduled_at || (serviceType === 'rikscha_tour' && tour_start_time ? tour_start_time : null);
+    const isScheduled = !!effectiveScheduledAt;
     const rideStatus = isScheduled ? 'scheduled' : 'pending';
 
     // Validierung: scheduled_at muss in der Zukunft liegen (mind. 30 Min)
     if (isScheduled) {
-      const scheduledDate = new Date(scheduled_at);
+      const scheduledDate = new Date(effectiveScheduledAt);
       const minTime = new Date(Date.now() + 30 * 60 * 1000);
       if (isNaN(scheduledDate.getTime())) {
         return res.status(400).json({ error: 'Ungültiges Datum für geplante Lieferung' });
@@ -160,8 +220,9 @@ router.post('/', async (req, res) => {
          platform_fee, driver_payout,
          invite_email, invite_role,
          pickup_method, pickup_code, delivery_method, delivery_code,
-         scheduled_at, is_scheduled, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+         scheduled_at, is_scheduled, status,
+         service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
        RETURNING *`,
       [
         req.user.userId,
@@ -179,12 +240,17 @@ router.post('/', async (req, res) => {
         invite_email || null,
         invite_role || null,
         pMethod,
-        pMethod === 'code' ? pickup_code : null,
+        isRikschaService ? null : (pMethod === 'code' ? pickup_code : null),
         dMethod,
-        dMethod === 'code' ? delivery_code : null,
-        isScheduled ? new Date(scheduled_at) : null,
+        isRikschaService ? null : (dMethod === 'code' ? delivery_code : null),
+        isScheduled ? new Date(effectiveScheduledAt) : null,
         isScheduled,
         rideStatus,
+        serviceType,
+        passengerCount,
+        tour_duration_hours ? parseFloat(tour_duration_hours) : null,
+        tour_start_time ? new Date(tour_start_time) : null,
+        tour_note || null,
       ]
     );
     const ride = rideResult.rows[0];
@@ -625,8 +691,11 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
 
-    // Pickup-Verifizierung prüfen
-    if (status === 'picked_up') {
+    // Rikscha-Services: keine Code-/Foto-Verifizierung nötig
+    const isRikscha = ['rikscha_taxi', 'rikscha_tour'].includes(ride.service_type);
+
+    // Pickup-Verifizierung prüfen (nur für Kurier-Service)
+    if (status === 'picked_up' && !isRikscha) {
       if (ride.pickup_method === 'code' && !ride.pickup_code_confirmed) {
         return res.status(400).json({ error: 'Abhol-Code muss zuerst bestätigt werden' });
       }
@@ -635,8 +704,8 @@ router.patch('/:id/status', async (req, res) => {
       }
     }
 
-    // Delivery-Verifizierung prüfen
-    if (status === 'delivered') {
+    // Delivery-Verifizierung prüfen (nur für Kurier-Service)
+    if (status === 'delivered' && !isRikscha) {
       if (ride.delivery_method === 'code' && !ride.delivery_code_confirmed) {
         return res.status(400).json({ error: 'Übergabe-Code muss zuerst bestätigt werden' });
       }

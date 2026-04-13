@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Map from './Map';
 import { apiFetch } from '@/lib/api';
 import { formatPrice } from '@/lib/maps';
@@ -23,6 +23,10 @@ interface Ride {
   delivery_method?: string;
   delivery_code_confirmed?: boolean;
   delivery_photo_url?: string;
+  service_type?: string;
+  passenger_count?: number;
+  tour_duration_hours?: number;
+  driver_payout?: number;
 }
 
 interface Props {
@@ -32,9 +36,14 @@ interface Props {
   userName?: string;
 }
 
-const ACTION = {
+const COURIER_ACTION = {
   accepted: { label: 'ABGEHOLT', nextStatus: 'picked_up', color: 'bg-warning' },
   picked_up: { label: 'ZUGESTELLT', nextStatus: 'delivered', color: 'bg-primary' },
+};
+
+const RIKSCHA_ACTION = {
+  accepted: { label: 'FAHRT GESTARTET', nextStatus: 'picked_up', color: 'bg-warning' },
+  picked_up: { label: 'FAHRT BEENDET', nextStatus: 'delivered', color: 'bg-primary' },
 };
 
 function CodeInput({ onVerify, verifying, error }: {
@@ -103,6 +112,35 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
   const [cancelling, setCancelling] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
 
+  // Rikscha detection
+  const isRikscha = ['rikscha_taxi', 'rikscha_tour'].includes(ride.service_type || '');
+  const isTour = ride.service_type === 'rikscha_tour';
+
+  // Tour timer state
+  const [tourSecondsLeft, setTourSecondsLeft] = useState<number | null>(null);
+  const [tourStartedAt, setTourStartedAt] = useState<number | null>(null);
+
+  // Start tour timer when ride is picked_up and it's a tour
+  useEffect(() => {
+    if (!isTour || ride.status !== 'picked_up' || !ride.tour_duration_hours) return;
+
+    // Set start time if not set
+    if (!tourStartedAt) {
+      setTourStartedAt(Date.now());
+      setTourSecondsLeft(ride.tour_duration_hours * 3600);
+    }
+
+    const interval = setInterval(() => {
+      setTourSecondsLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 0) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isTour, ride.status, ride.tour_duration_hours, tourStartedAt]);
+
   // Pickup verification state
   const [pickupVerified, setPickupVerified] = useState(ride.pickup_code_confirmed || false);
   const [pickupPhotoUrl, setPickupPhotoUrl] = useState<string | null>(ride.pickup_photo_url || null);
@@ -121,7 +159,8 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
   const [deliveryVerifying, setDeliveryVerifying] = useState(false);
   const deliveryFileRef = useRef<HTMLInputElement>(null);
 
-  const action = ACTION[ride.status as keyof typeof ACTION];
+  const actionMap = isRikscha ? RIKSCHA_ACTION : COURIER_ACTION;
+  const action = actionMap[ride.status as keyof typeof actionMap];
   const pickupMethod = ride.pickup_method || 'photo';
   const deliveryMethod = ride.delivery_method || 'photo';
 
@@ -129,10 +168,18 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
     ride.status === 'accepted' ? `${ride.pickup_lat},${ride.pickup_lng}` : `${ride.dropoff_lat},${ride.dropoff_lng}`
   }&travelmode=bicycling`;
 
-  // Can proceed to next status?
-  const pickupReady = pickupMethod === 'code' ? pickupVerified : !!pickupPhotoUrl;
-  const deliveryReady = deliveryMethod === 'code' ? deliveryVerified : !!deliveryPhotoUrl;
+  // Can proceed to next status? Rikscha skips all verification
+  const pickupReady = isRikscha ? true : (pickupMethod === 'code' ? pickupVerified : !!pickupPhotoUrl);
+  const deliveryReady = isRikscha ? true : (deliveryMethod === 'code' ? deliveryVerified : !!deliveryPhotoUrl);
   const canProceed = ride.status === 'accepted' ? pickupReady : deliveryReady;
+
+  // Tour timer helper
+  function formatTimer(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
 
   async function handleVerifyPickup(code: string) {
     setPickupVerifying(true);
@@ -286,13 +333,17 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
           {/* Status Badge + Preis */}
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Aktiver Auftrag</p>
-              <p className="text-2xl font-black text-gray-900">{formatPrice(Number(ride.price))}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                {isRikscha ? (isTour ? '🗺 Stadt-Tour' : '🛺 Rikscha-Taxi') : 'Aktiver Auftrag'}
+              </p>
+              <p className="text-2xl font-black text-gray-900">{formatPrice(Number(ride.driver_payout || ride.price))}</p>
             </div>
             <span className={`px-4 py-2 rounded-full text-xs font-bold text-white shadow-sm ${
               ride.status === 'accepted' ? 'bg-warning' : 'bg-primary'
             }`}>
-              {ride.status === 'accepted' ? 'Zur Abholung' : 'Unterwegs'}
+              {ride.status === 'accepted'
+                ? (isRikscha ? 'Zum Treffpunkt' : 'Zur Abholung')
+                : (isRikscha ? 'Fahrt läuft' : 'Unterwegs')}
             </span>
           </div>
 
@@ -301,7 +352,9 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
             <div className="flex items-start gap-3 mb-3">
               <div className="w-3 h-3 rounded-full bg-green-500 mt-1 flex-shrink-0 shadow-sm" />
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase">Abholung</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase">
+                  {isRikscha ? 'Treffpunkt' : 'Abholung'}
+                </p>
                 <p className="text-sm font-semibold text-gray-900">{ride.pickup_address}</p>
               </div>
             </div>
@@ -309,11 +362,24 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
             <div className="flex items-start gap-3 mt-3">
               <div className="w-3 h-3 rounded-full bg-red-500 mt-1 flex-shrink-0 shadow-sm" />
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase">Ziel</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase">
+                  {isTour ? 'Endpunkt' : 'Ziel'}
+                </p>
                 <p className="text-sm font-semibold text-gray-900">{ride.dropoff_address}</p>
               </div>
             </div>
           </div>
+
+          {/* Tour Timer */}
+          {isTour && ride.status === 'picked_up' && tourSecondsLeft !== null && (
+            <div className={`mb-5 rounded-2xl p-4 text-center ${tourSecondsLeft <= 600 ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200'}`}>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Tour-Restzeit</p>
+              <p className={`text-3xl font-black ${tourSecondsLeft <= 600 ? 'text-red-600' : tourSecondsLeft <= 1800 ? 'text-orange-500' : 'text-blue-700'}`}>
+                {formatTimer(tourSecondsLeft)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">{ride.tour_duration_hours} Std. gebucht</p>
+            </div>
+          )}
 
           {/* Infos */}
           <div className="flex gap-3 mb-5">
@@ -323,14 +389,27 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
                 <p className="text-sm font-bold text-gray-900 mt-0.5">{ride.customer_name}</p>
               </div>
             )}
+            {isRikscha && (
+              <div className="flex-1 bg-gray-50 rounded-2xl p-3 text-center">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase">Fahrgäste</p>
+                <p className="text-sm font-bold text-gray-900 mt-0.5">{ride.passenger_count || 1} Pers.</p>
+              </div>
+            )}
             <div className="flex-1 bg-gray-50 rounded-2xl p-3 text-center">
               <p className="text-[10px] text-gray-400 font-semibold uppercase">Fahrzeug</p>
-              <p className="text-sm font-bold mt-0.5">{ride.vehicle_type === 'bicycle' ? '🚲 Rad' : '🚛 Lastenrad'}</p>
+              <p className="text-sm font-bold mt-0.5">
+                {ride.vehicle_type === 'bicycle' ? '🚲 Rad'
+                  : ride.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad'
+                  : ride.vehicle_type === 'rikscha' ? '🛺 Rikscha'
+                  : ride.vehicle_type === 'rikscha_xl' ? '🛺 XL'
+                  : ride.vehicle_type === 'tandem' ? '🚲🚲 Tandem'
+                  : '🚲 Rad'}
+              </p>
             </div>
           </div>
 
-          {/* Verifizierung */}
-          <div className="mb-4">
+          {/* Verifizierung — nur für Kurier, nicht für Rikscha */}
+          {!isRikscha && <div className="mb-4">
             {currentMethod === 'code' && !canProceed && (
               <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                 <p className="text-sm font-semibold text-gray-700 text-center">
@@ -393,7 +472,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
 
             <input ref={pickupFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoUpload(e, 'pickup')} />
             <input ref={deliveryFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoUpload(e, 'delivery')} />
-          </div>
+          </div>}
 
           {/* Navigation Button */}
           <a
@@ -416,7 +495,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
               {loading ? 'Bitte warten...' : `✓ ${action.label}`}
             </button>
           )}
-          {!canProceed && (
+          {!canProceed && !isRikscha && (
             <p className="text-center text-xs text-gray-400 mt-2">
               {currentMethod === 'code' ? 'Bitte zuerst den Code eingeben' : 'Bitte zuerst ein Foto machen'}
             </p>
@@ -429,7 +508,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
               disabled={cancelling}
               className="w-full mt-3 bg-white border border-red-200 text-red-500 font-semibold py-3.5 rounded-2xl active:bg-red-50 disabled:opacity-40 transition-colors"
             >
-              {cancelling ? 'Wird storniert...' : 'Auftrag stornieren'}
+              {cancelling ? 'Wird storniert...' : (isRikscha ? 'Fahrt stornieren' : 'Auftrag stornieren')}
             </button>
           )}
         </div>

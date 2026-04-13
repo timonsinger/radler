@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { register } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
 
-type VehicleType = 'bicycle' | 'cargo_bike';
+type VehicleType = 'bicycle' | 'cargo_bike' | 'rikscha' | 'rikscha_xl' | 'tandem';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,6 +41,9 @@ export default function RegisterPage() {
   const vehicles: { type: VehicleType; emoji: string; label: string; desc: string }[] = [
     { type: 'bicycle', emoji: '🚲', label: 'Fahrradkurier', desc: 'Rucksack-Größe' },
     { type: 'cargo_bike', emoji: '🚛', label: 'Lastenrad', desc: 'Größere Pakete' },
+    { type: 'rikscha', emoji: '🛺', label: 'Rikscha', desc: '2 Fahrgäste' },
+    { type: 'rikscha_xl', emoji: '🛺', label: 'Rikscha XL', desc: '4+ Fahrgäste' },
+    { type: 'tandem', emoji: '🚲🚲', label: 'Tandem', desc: '1 Fahrgast' },
   ];
 
   return (
@@ -80,7 +83,7 @@ export default function RegisterPage() {
           {/* Fahrzeugtyp */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-2">Fahrzeug</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {vehicles.map((v) => (
                 <button
                   key={v.type}

@@ -15,10 +15,26 @@ export const PRICING = {
   cargo_bike: { base: 6.00, perKm: 2.00, min: 8.00 },
 };
 
+export const RIKSCHA_PRICING = {
+  rikscha: { taxiBase: 5.00, taxiPerKm: 4.00, taxiMin: 13.00, tourPerHour: 40.00, maxPassengers: 2 },
+  rikscha_xl: { taxiBase: 8.00, taxiPerKm: 5.00, taxiMin: 18.00, tourPerHour: 60.00, maxPassengers: 4 },
+  tandem: { taxiBase: 4.00, taxiPerKm: 3.00, taxiMin: 10.00, tourPerHour: 30.00, maxPassengers: 1 },
+};
+
+export type RikschaVehicle = 'rikscha' | 'rikscha_xl' | 'tandem';
+
 // Preis berechnen (gleiche Logik wie Backend)
 export function calculatePrice(vehicleType: 'bicycle' | 'cargo_bike', distanceKm: number): number {
   const p = PRICING[vehicleType];
   return Math.max(p.min, p.base + distanceKm * p.perKm);
+}
+
+export function calculateRikschaPrice(vehicleType: RikschaVehicle, mode: 'taxi' | 'tour', distanceKm: number, tourHours: number): number {
+  const p = RIKSCHA_PRICING[vehicleType];
+  if (mode === 'taxi') {
+    return Math.max(p.taxiMin, p.taxiBase + distanceKm * p.taxiPerKm);
+  }
+  return tourHours * p.tourPerHour;
 }
 
 // Preis formatieren
@@ -35,13 +51,13 @@ export function formatDistance(km: number): string {
 // Status-Label auf Deutsch
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    pending: 'Suche Kurier...',
-    scheduled: 'Geplant – wartet auf Abholzeit',
-    accepted: 'Kurier unterwegs zur Abholung',
-    picked_up: 'Paket abgeholt',
-    delivered: 'Zugestellt ✓',
+    pending: 'Suche Fahrer...',
+    scheduled: 'Geplant – wartet auf Startzeit',
+    accepted: 'Fahrer unterwegs zu dir',
+    picked_up: 'Unterwegs',
+    delivered: 'Abgeschlossen ✓',
     cancelled: 'Storniert',
-    expired: 'Abgelaufen – kein Kurier gefunden',
+    expired: 'Abgelaufen – kein Fahrer gefunden',
   };
   return labels[status] || status;
 }

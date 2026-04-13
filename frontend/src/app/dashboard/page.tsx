@@ -92,29 +92,25 @@ export default function DashboardPage() {
           </Link>
 
           {/* 4b: Rikscha-Card */}
-          <div
-            className="relative overflow-hidden rounded-[16px] p-[24px_20px] min-h-[120px] opacity-60"
-            style={{
-              background: '#FFFDF5',
-              border: '1px solid #FAEFD4',
-            }}
-          >
-            <div className="text-3xl mb-3">🛺</div>
-            <h3 className="font-heading font-semibold text-base text-radler-ink-600">Rikscha</h3>
-            <p className="font-body text-xs text-radler-ink-400 mt-0.5">Personentransport</p>
-            <span
-              className="absolute top-3 right-3 font-body font-semibold"
+          <Link href="/book/rikscha">
+            <div
+              className="relative overflow-hidden rounded-[16px] p-[24px_20px] min-h-[120px] active:opacity-90 transition-opacity"
               style={{
-                background: '#FFF0EC',
-                color: '#C44525',
-                fontSize: '11px',
-                borderRadius: '20px',
-                padding: '3px 10px',
+                background: 'linear-gradient(135deg, #1B5E20 0%, #0D3B12 50%, #092609 100%)',
+                transitionDuration: 'var(--duration-fast)',
               }}
             >
-              Bald
-            </span>
-          </div>
+              {/* Dekorative Kreise */}
+              <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full" style={{ background: 'rgba(255,215,0,0.08)' }} />
+              <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full" style={{ background: 'rgba(255,215,0,0.08)' }} />
+
+              <div className="relative z-10">
+                <div className="text-3xl mb-3">🛺</div>
+                <h3 className="font-heading font-semibold text-base text-white">Rikscha buchen</h3>
+                <p className="font-body text-xs text-white/75 mt-0.5">Personenbeförderung</p>
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* Buchungen */}

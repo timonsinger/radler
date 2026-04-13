@@ -11,6 +11,9 @@ interface Ride {
   vehicle_type: string;
   scheduled_at?: string;
   is_scheduled?: boolean;
+  service_type?: string;
+  passenger_count?: number;
+  tour_duration_hours?: number;
 }
 
 /* 4d: Status-Badges */
@@ -59,7 +62,14 @@ export default function RideCard({ ride }: { ride: Ride }) {
             {formatPrice(Number(ride.price))}
           </span>
           <p className="font-mono text-[10px] text-radler-ink-300 mt-0.5">
-            {ride.vehicle_type === 'bicycle' ? '🚲 Kurier' : '🚛 Lastenrad'}
+            {ride.service_type === 'rikscha_taxi' ? '🛺 Rikscha-Taxi'
+              : ride.service_type === 'rikscha_tour' ? '🗺 Stadt-Tour'
+              : ride.vehicle_type === 'bicycle' ? '🚲 Kurier'
+              : ride.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad'
+              : ride.vehicle_type === 'rikscha' ? '🛺 Rikscha'
+              : ride.vehicle_type === 'rikscha_xl' ? '🛺 Rikscha XL'
+              : ride.vehicle_type === 'tandem' ? '🚲🚲 Tandem'
+              : '🚲 Kurier'}
           </p>
         </div>
       </div>

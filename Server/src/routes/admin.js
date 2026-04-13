@@ -141,6 +141,7 @@ router.get('/rides', async (req, res) => {
               r.pickup_method, r.pickup_code, r.pickup_code_confirmed,
               r.delivery_method, r.delivery_code, r.delivery_code_confirmed,
               r.scheduled_at, r.is_scheduled,
+              r.service_type, r.passenger_count, r.tour_duration_hours, r.tour_start_time,
               c_user.name AS customer_name, c_user.email AS customer_email,
               d_user.name AS driver_name, d_user.email AS driver_email
        FROM rides r
@@ -478,6 +479,10 @@ router.patch('/settings', async (req, res) => {
       'bicycle_base_fee', 'bicycle_per_km', 'bicycle_min_price',
       'cargo_base_fee', 'cargo_per_km', 'cargo_min_price',
       'platform_commission', 'ride_timeout_minutes',
+      'rikscha_taxi_base_fee', 'rikscha_taxi_per_km', 'rikscha_taxi_min_price',
+      'rikscha_xl_taxi_base_fee', 'rikscha_xl_taxi_per_km', 'rikscha_xl_taxi_min_price',
+      'tandem_taxi_base_fee', 'tandem_taxi_per_km', 'tandem_taxi_min_price',
+      'rikscha_tour_per_hour', 'rikscha_xl_tour_per_hour', 'tandem_tour_per_hour',
     ];
 
     for (const [key, value] of Object.entries(settings)) {

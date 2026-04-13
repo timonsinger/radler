@@ -34,6 +34,9 @@ async function migrate() {
   // Neue Spalten falls Tabelle schon existiert
   await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS max_pickup_radius_km DECIMAL(5,1) DEFAULT 10.0`);
   await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS max_ride_distance_km DECIMAL(5,1) DEFAULT 20.0`);
+  // Vehicle-Type-Constraint erweitern um Rikscha-Typen
+  await db.query(`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_vehicle_type_check`);
+  await db.query(`ALTER TABLE drivers ADD CONSTRAINT drivers_vehicle_type_check CHECK (vehicle_type IN ('bicycle', 'cargo_bike', 'rikscha', 'rikscha_xl', 'tandem'))`);
   console.log('✅ Tabelle drivers erstellt/geprüft');
 
   // Tabelle: rides
@@ -62,6 +65,9 @@ async function migrate() {
   `);
   // Neue Spalte falls Tabelle schon existiert
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS delivery_photo_url TEXT`);
+  // Vehicle-Type-Constraint erweitern um Rikscha-Typen
+  await db.query(`ALTER TABLE rides DROP CONSTRAINT IF EXISTS rides_vehicle_type_check`);
+  await db.query(`ALTER TABLE rides ADD CONSTRAINT rides_vehicle_type_check CHECK (vehicle_type IN ('bicycle', 'cargo_bike', 'rikscha', 'rikscha_xl', 'tandem'))`);
   console.log('✅ Tabelle rides erstellt/geprüft');
 
   // Tabelle: invite_tokens
@@ -152,6 +158,18 @@ async function migrate() {
     ['cargo_min_price', '8.00'],
     ['platform_commission', '0.15'],
     ['ride_timeout_minutes', '10'],
+    ['rikscha_taxi_base_fee', '5.00'],
+    ['rikscha_taxi_per_km', '4.00'],
+    ['rikscha_taxi_min_price', '13.00'],
+    ['rikscha_xl_taxi_base_fee', '8.00'],
+    ['rikscha_xl_taxi_per_km', '5.00'],
+    ['rikscha_xl_taxi_min_price', '18.00'],
+    ['tandem_taxi_base_fee', '4.00'],
+    ['tandem_taxi_per_km', '3.00'],
+    ['tandem_taxi_min_price', '10.00'],
+    ['rikscha_tour_per_hour', '40.00'],
+    ['rikscha_xl_tour_per_hour', '60.00'],
+    ['tandem_tour_per_hour', '30.00'],
   ];
   for (const [key, value] of defaults) {
     await db.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, [key, value]);
@@ -169,6 +187,16 @@ async function migrate() {
   await db.query(`ALTER TABLE rides DROP CONSTRAINT IF EXISTS rides_status_check`);
   await db.query(`ALTER TABLE rides ADD CONSTRAINT rides_status_check CHECK (status IN ('pending', 'accepted', 'picked_up', 'delivered', 'cancelled', 'expired', 'scheduled'))`);
   console.log('✅ Spalten rides.scheduled_at, rides.is_scheduled + Status scheduled erstellt/geprüft');
+
+  // Rikscha-Service: neue Spalten für Personenbeförderung
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS service_type VARCHAR(20) DEFAULT 'courier'`);
+  await db.query(`ALTER TABLE rides DROP CONSTRAINT IF EXISTS rides_service_type_check`);
+  await db.query(`ALTER TABLE rides ADD CONSTRAINT rides_service_type_check CHECK (service_type IN ('courier', 'rikscha_taxi', 'rikscha_tour'))`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS passenger_count INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS tour_duration_hours DECIMAL(3,1)`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS tour_start_time TIMESTAMP`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS tour_note TEXT`);
+  console.log('✅ Rikscha-Spalten (service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note) erstellt/geprüft');
 
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
