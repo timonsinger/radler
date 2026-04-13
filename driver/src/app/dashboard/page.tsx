@@ -325,7 +325,7 @@ export default function DashboardPage() {
 
       <div className="flex-1 flex flex-col px-4 pt-6 pb-8 gap-5">
         {/* Onboarding Banner */}
-        {showOnboardingBanner && isApproved && (
+        {showOnboardingBanner && (
           <a
             href="/onboarding"
             className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center gap-3 active:bg-yellow-100 transition-colors"

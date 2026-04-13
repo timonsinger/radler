@@ -54,7 +54,7 @@ router.get('/dashboard', async (req, res) => {
     `);
 
     const pendingQ = await db.query(
-      "SELECT COUNT(*) AS count FROM drivers WHERE onboarding_completed = true AND is_approved = false"
+      "SELECT COUNT(*) AS count FROM drivers WHERE is_approved = false"
     );
 
     const format = (row) => ({
@@ -242,7 +242,7 @@ router.get('/drivers', async (req, res) => {
     );
 
     const pendingQ = await db.query(
-      "SELECT COUNT(*) AS count FROM drivers WHERE onboarding_completed = true AND is_approved = false"
+      "SELECT COUNT(*) AS count FROM drivers WHERE is_approved = false"
     );
 
     const dataQ = await db.query(
@@ -278,8 +278,8 @@ router.get('/drivers/pending', async (req, res) => {
               d.onboarding_completed, u.created_at
        FROM drivers d
        JOIN users u ON u.id = d.user_id
-       WHERE d.onboarding_completed = true AND d.is_approved = false
-       ORDER BY u.created_at ASC`
+       WHERE d.is_approved = false
+       ORDER BY d.onboarding_completed DESC, u.created_at ASC`
     );
     res.json({ drivers: result.rows });
   } catch (err) {
