@@ -29,7 +29,7 @@ app.use(express.json());
 // Rate Limiting: 1000 Anfragen pro 15 Minuten
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte warte kurz.' },
