@@ -13,6 +13,7 @@ const { setupSockets, getIO } = require('./sockets');
 const authRoutes = require('./routes/auth');
 const ridesRoutes = require('./routes/rides');
 const driversRoutes = require('./routes/drivers');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -55,6 +56,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/api/auth', authRoutes);
 app.use('/api/rides', ridesRoutes);
 app.use('/api/drivers', driversRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health-Check Route
 app.get('/api/health', (req, res) => {
@@ -79,13 +81,20 @@ server.listen(PORT, () => {
   // Automatische Stornierung von abgelaufenen Aufträgen (alle 60 Sekunden)
   setInterval(async () => {
     try {
+      // Timeout aus Settings lesen
+      let timeoutMinutes = 10;
+      try {
+        const settingsResult = await db.query("SELECT value FROM settings WHERE key = 'ride_timeout_minutes'");
+        if (settingsResult.rows.length > 0) timeoutMinutes = parseInt(settingsResult.rows[0].value) || 10;
+      } catch { /* Default verwenden */ }
+
       const result = await db.query(`
         UPDATE rides
         SET status = 'expired', completed_at = NOW()
         WHERE status = 'pending'
-        AND created_at < NOW() - INTERVAL '10 minutes'
+        AND created_at < NOW() - INTERVAL '1 minute' * $1
         RETURNING id, customer_id
-      `);
+      `, [timeoutMinutes]);
       if (result.rows.length > 0) {
         const io = getIO();
         result.rows.forEach((ride) => {

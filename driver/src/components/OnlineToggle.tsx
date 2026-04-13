@@ -4,14 +4,15 @@ interface Props {
   isOnline: boolean;
   onToggle: () => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
-export default function OnlineToggle({ isOnline, onToggle, loading }: Props) {
+export default function OnlineToggle({ isOnline, onToggle, loading, disabled }: Props) {
   return (
     <div className="flex flex-col items-center gap-4">
       <button
         onClick={onToggle}
-        disabled={loading}
+        disabled={loading || disabled}
         className={`
           w-36 h-36 rounded-full font-black text-lg tracking-widest
           flex items-center justify-center

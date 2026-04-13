@@ -115,7 +115,7 @@ router.post('/login', async (req, res) => {
 
     // User per Email suchen
     const userResult = await db.query(
-      'SELECT id, email, password_hash, name, role FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, role, is_banned FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -129,6 +129,11 @@ router.post('/login', async (req, res) => {
     const passwordValid = await bcrypt.compare(password, user.password_hash);
     if (!passwordValid) {
       return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+    }
+
+    // Ban-Check
+    if (user.is_banned) {
+      return res.status(403).json({ error: 'Dein Account wurde gesperrt.' });
     }
 
     console.log(`Login: ${user.name} (${user.email})`);
@@ -168,7 +173,7 @@ router.get('/me', authMiddleware, async (req, res) => {
     // Falls Fahrer: Driver-Daten mitschicken
     if (user.role === 'driver') {
       const driverResult = await db.query(
-        'SELECT vehicle_type, is_online, rating, description, availability, onboarding_completed FROM drivers WHERE user_id = $1',
+        'SELECT vehicle_type, is_online, rating, description, availability, onboarding_completed, is_approved FROM drivers WHERE user_id = $1',
         [user.id]
       );
       if (driverResult.rows.length > 0) {

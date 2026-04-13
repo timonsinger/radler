@@ -36,13 +36,35 @@ const upload = multer({
   },
 });
 
+// Settings aus DB laden (mit Cache)
+let settingsCache = null;
+let settingsCacheTime = 0;
+async function getSettings() {
+  if (settingsCache && Date.now() - settingsCacheTime < 30000) return settingsCache;
+  const result = await db.query('SELECT key, value FROM settings');
+  const settings = {};
+  for (const row of result.rows) {
+    settings[row.key] = row.value;
+  }
+  settingsCache = settings;
+  settingsCacheTime = Date.now();
+  return settings;
+}
+
 // Preisberechnung: Grundgebühr + km-Preis, mit Mindestpreis
-function calculatePrice(vehicleType, distanceKm) {
+async function calculatePrice(vehicleType, distanceKm) {
   const distance = parseFloat(distanceKm) || 0;
+  const s = await getSettings();
   if (vehicleType === 'bicycle') {
-    return Math.max(5.50, 4.00 + distance * 1.50);
+    const base = parseFloat(s.bicycle_base_fee) || 4.00;
+    const perKm = parseFloat(s.bicycle_per_km) || 1.50;
+    const min = parseFloat(s.bicycle_min_price) || 5.50;
+    return Math.max(min, base + distance * perKm);
   } else if (vehicleType === 'cargo_bike') {
-    return Math.max(8.00, 6.00 + distance * 2.00);
+    const base = parseFloat(s.cargo_base_fee) || 6.00;
+    const perKm = parseFloat(s.cargo_per_km) || 2.00;
+    const min = parseFloat(s.cargo_min_price) || 8.00;
+    return Math.max(min, base + distance * perKm);
   }
   return 5.50;
 }
@@ -108,9 +130,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'delivery_code muss 4 Ziffern sein' });
     }
 
-    const price = calculatePrice(vehicle_type, distance_km);
-    const platformFee = parseFloat((price * 0.15).toFixed(2));
-    const driverPayout = parseFloat((price * 0.85).toFixed(2));
+    const price = await calculatePrice(vehicle_type, distance_km);
+    const s = await getSettings();
+    const commission = parseFloat(s.platform_commission) || 0.15;
+    const platformFee = parseFloat((price * commission).toFixed(2));
+    const driverPayout = parseFloat((price * (1 - commission)).toFixed(2));
 
     const rideResult = await db.query(
       `INSERT INTO rides

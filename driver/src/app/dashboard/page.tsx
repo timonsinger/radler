@@ -50,6 +50,9 @@ export default function DashboardPage() {
   const [maxRideDistance, setMaxRideDistance] = useState(20);
   const [ratingToast, setRatingToast] = useState<{ rating: number; comment?: string } | null>(null);
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
+  const [isApproved, setIsApproved] = useState(true);
+  const [approvalToast, setApprovalToast] = useState<string | null>(null);
+  const [rejectionAlert, setRejectionAlert] = useState<string | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isOnlineRef = useRef(false);
 
@@ -75,6 +78,7 @@ export default function DashboardPage() {
       .then((data) => {
         if (data.driver?.is_online) setIsOnline(true);
         if (data.driver && !data.driver.onboarding_completed) setShowOnboardingBanner(true);
+        if (data.driver) setIsApproved(!!data.driver.is_approved);
         return Promise.all([
           apiFetch('/api/rides'),
           apiFetch('/api/drivers/settings'),
@@ -120,11 +124,24 @@ export default function DashboardPage() {
       setTimeout(() => setRatingToast(null), 5000);
     };
 
+    const handleDriverApproved = () => {
+      setIsApproved(true);
+      setApprovalToast('Dein Account wurde freigeschaltet! Du kannst jetzt online gehen.');
+      setTimeout(() => setApprovalToast(null), 6000);
+    };
+
+    const handleDriverRejected = (data: { reason: string }) => {
+      setIsApproved(false);
+      setRejectionAlert(`Dein Account wurde abgelehnt. Grund: ${data.reason}. Bitte kontaktiere uns.`);
+    };
+
     socket.on('ride:new', handleRideNew);
     socket.on('ride:removed', handleRideRemoved);
     socket.on('ride:status_update', handleStatusUpdate);
     socket.on('connect', handleReconnect);
     socket.on('ride:rated', handleRideRated);
+    socket.on('driver:approved', handleDriverApproved);
+    socket.on('driver:rejected', handleDriverRejected);
 
     return () => {
       socket.off('ride:new', handleRideNew);
@@ -132,6 +149,8 @@ export default function DashboardPage() {
       socket.off('ride:status_update', handleStatusUpdate);
       socket.off('connect', handleReconnect);
       socket.off('ride:rated', handleRideRated);
+      socket.off('driver:approved', handleDriverApproved);
+      socket.off('driver:rejected', handleDriverRejected);
       disconnectSocket();
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
@@ -190,7 +209,10 @@ export default function DashboardPage() {
         setIsOnline(false);
         setPendingRide(null);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err.message?.includes('nicht freigeschaltet') || err.message?.includes('403')) {
+        setIsApproved(false);
+      }
       console.error('Toggle fehlgeschlagen:', err);
     } finally {
       setToggleLoading(false);
@@ -294,7 +316,7 @@ export default function DashboardPage() {
 
       <div className="flex-1 flex flex-col px-4 pt-6 pb-8 gap-5">
         {/* Onboarding Banner */}
-        {showOnboardingBanner && (
+        {showOnboardingBanner && isApproved && (
           <a
             href="/onboarding"
             className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center gap-3 active:bg-yellow-100 transition-colors"
@@ -308,6 +330,19 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </a>
+        )}
+
+        {/* Approval Pending Banner */}
+        {!isApproved && !showOnboardingBanner && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⏳</span>
+              <div>
+                <p className="text-sm font-bold text-blue-800">Dein Account wird geprüft</p>
+                <p className="text-xs text-blue-600 mt-0.5">Du wirst benachrichtigt sobald du freigeschaltet bist.</p>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Online/Offline Toggle + Karte */}
@@ -325,7 +360,11 @@ export default function DashboardPage() {
               isOnline={isOnline}
               onToggle={handleToggle}
               loading={toggleLoading}
+              disabled={!isApproved}
             />
+            {!isApproved && (
+              <p className="text-xs text-gray-400 mt-1">Freischaltung ausstehend</p>
+            )}
           </div>
 
           {/* Einstellungen wenn offline */}
@@ -422,6 +461,35 @@ export default function DashboardPage() {
           onDecline={() => setPendingRide(null)}
           accepting={accepting}
         />
+      )}
+
+      {/* Approval Toast */}
+      {approvalToast && (
+        <div className="fixed top-14 left-4 right-4 z-50 animate-slide-down">
+          <div className="bg-green-50 border border-green-200 rounded-2xl shadow-xl p-4 flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <p className="text-sm font-semibold text-green-800 flex-1">{approvalToast}</p>
+            <button onClick={() => setApprovalToast(null)} className="text-green-400 p-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Alert */}
+      {rejectionAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-white rounded-2xl max-w-sm mx-4 p-6 shadow-2xl text-center">
+            <span className="text-4xl">❌</span>
+            <p className="text-sm text-gray-700 mt-3">{rejectionAlert}</p>
+            <button onClick={() => setRejectionAlert(null)} className="mt-4 px-6 py-2 bg-gray-100 text-gray-700 font-semibold rounded-xl">
+              OK
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Bewertungs-Toast */}

@@ -119,6 +119,49 @@ async function migrate() {
   await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false`);
   console.log('✅ Spalte drivers.onboarding_completed erstellt/geprüft');
 
+  // Admin-Rolle hinzufügen
+  await db.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+  await db.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('customer', 'driver', 'admin'))`);
+  console.log('✅ Rolle admin hinzugefügt');
+
+  // Fahrer-Freischaltung
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT false`);
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id)`);
+  console.log('✅ Spalten drivers.is_approved, approved_at, approved_by erstellt/geprüft');
+
+  // User-Sperrung
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT false`);
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT`);
+  console.log('✅ Spalten users.is_banned, ban_reason erstellt/geprüft');
+
+  // Settings-Tabelle
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+  // Default-Werte einfügen falls noch nicht vorhanden
+  const defaults = [
+    ['bicycle_base_fee', '4.00'],
+    ['bicycle_per_km', '1.50'],
+    ['bicycle_min_price', '5.50'],
+    ['cargo_base_fee', '6.00'],
+    ['cargo_per_km', '2.00'],
+    ['cargo_min_price', '8.00'],
+    ['platform_commission', '0.15'],
+    ['ride_timeout_minutes', '10'],
+  ];
+  for (const [key, value] of defaults) {
+    await db.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, [key, value]);
+  }
+  console.log('✅ Settings-Tabelle erstellt/geprüft');
+
+  // Fahrer last_online Spalte
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS last_online TIMESTAMP`);
+  console.log('✅ Spalte drivers.last_online erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

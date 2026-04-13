@@ -135,8 +135,19 @@ router.patch('/status', requireDriver, async (req, res) => {
       return res.status(400).json({ error: 'is_online muss ein Boolean sein' });
     }
 
+    // Freischaltungs-Check beim Online-Gehen
+    if (is_online) {
+      const approvalResult = await db.query(
+        'SELECT is_approved FROM drivers WHERE user_id = $1',
+        [req.user.userId]
+      );
+      if (approvalResult.rows.length > 0 && !approvalResult.rows[0].is_approved) {
+        return res.status(403).json({ error: 'Dein Account wurde noch nicht freigeschaltet. Bitte warte auf die Admin-Bestätigung.' });
+      }
+    }
+
     await db.query(
-      'UPDATE drivers SET is_online = $1 WHERE user_id = $2',
+      `UPDATE drivers SET is_online = $1, last_online = ${is_online ? 'NOW()' : 'last_online'} WHERE user_id = $2`,
       [is_online, req.user.userId]
     );
 
