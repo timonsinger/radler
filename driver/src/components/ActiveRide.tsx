@@ -117,7 +117,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
       </div>
 
       {/* Info & Buttons */}
-      <div className="flex-1 overflow-y-auto bg-white rounded-t-3xl -mt-4 shadow-lg">
+      <div className="flex-1 overflow-y-auto bg-white rounded-t-3xl -mt-4 shadow-lg relative z-10">
         {/* Griff */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
