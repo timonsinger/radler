@@ -52,35 +52,25 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     }
   }, []);
 
-  // Initialize map ONCE — with cleanup on unmount
+  // Initialize map ONCE — synchronous init + cleanup on unmount
   useEffect(() => {
-    let iv: ReturnType<typeof setInterval> | null = null;
-    let rafId: number | null = null;
-
     const init = () => {
       if (!mapRef.current || !window.google?.maps || googleMapRef.current) return;
-      // Wait one frame so the container has its layout dimensions
-      rafId = requestAnimationFrame(() => {
-        if (!mapRef.current || googleMapRef.current) return;
-        googleMapRef.current = new window.google.maps.Map(mapRef.current, {
-          center: KONSTANZ_CENTER,
-          zoom: 14,
-          disableDefaultUI: true,
-          zoomControl: false,
-          gestureHandling: 'greedy',
-          styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
-        });
+      googleMapRef.current = new window.google.maps.Map(mapRef.current, {
+        center: KONSTANZ_CENTER,
+        zoom: 14,
+        disableDefaultUI: true,
+        zoomControl: false,
+        gestureHandling: 'greedy',
+        styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
       });
     };
-
     if (window.google?.maps) { init(); } else {
-      iv = setInterval(() => { if (window.google?.maps) { clearInterval(iv!); iv = null; init(); } }, 200);
+      var iv = setInterval(() => { if (window.google?.maps) { clearInterval(iv); init(); } }, 200);
     }
-
     return () => {
       if (iv) clearInterval(iv);
-      if (rafId) cancelAnimationFrame(rafId);
-      googleMapRef.current = null; // Reset so next mount creates a fresh instance
+      googleMapRef.current = null;
     };
   }, []);
 
