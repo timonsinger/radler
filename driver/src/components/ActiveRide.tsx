@@ -106,18 +106,18 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Karte */}
-      <div style={{ height: '40vh' }}>
+      <div className="px-4 pt-4">
         <Map
           markers={markers}
           driverLocation={driverLocation}
           showRoute
-          style={{ width: '100%', height: '100%' }}
-          className="rounded-none"
+          style={{ width: '100%', height: '35vh' }}
+          className="rounded-2xl"
         />
       </div>
 
-      {/* Info & Buttons — überlappt die Karte leicht */}
-      <div className="bg-white rounded-t-3xl -mt-6 relative z-10 shadow-xl min-h-[60vh]">
+      {/* Info & Buttons */}
+      <div className="bg-white">
         {/* Griff */}
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
