@@ -102,19 +102,45 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     });
   }, [markers, showRoute]);
 
+  // Zoom passend zum Radius berechnen
+  const fitToRadius = useCallback(() => {
+    if (!googleMapRef.current || !driverLocation || !radiusKm || radiusKm <= 0) return;
+    const circle = new window.google.maps.Circle({
+      center: driverLocation,
+      radius: radiusKm * 1000,
+    });
+    googleMapRef.current.fitBounds(circle.getBounds()!, { top: 20, bottom: 20, left: 20, right: 20 });
+  }, [driverLocation, radiusKm]);
+
   // Einmal auf aktuelle Position zentrieren wenn GPS verfügbar wird
   useEffect(() => {
     if (!googleMapRef.current || !driverLocation || initialCenterDone.current) return;
     googleMapRef.current.setCenter(driverLocation);
-    googleMapRef.current.setZoom(15);
+    if (!isOnline && radiusKm && radiusKm > 0) {
+      fitToRadius();
+    } else {
+      googleMapRef.current.setZoom(15);
+    }
     initialCenterDone.current = true;
-  }, [driverLocation]);
+  }, [driverLocation, isOnline, radiusKm, fitToRadius]);
+
+  // Offline: bei Radius-Änderung auf Kreis zoomen
+  useEffect(() => {
+    if (!googleMapRef.current || !driverLocation || isOnline) return;
+    if (radiusKm && radiusKm > 0) {
+      fitToRadius();
+    }
+  }, [radiusKm, isOnline, driverLocation, fitToRadius]);
 
   const centerOnDriver = useCallback(() => {
     if (!googleMapRef.current || !driverLocation) return;
     googleMapRef.current.panTo(driverLocation);
-    googleMapRef.current.setZoom(15);
-  }, [driverLocation]);
+    if (!isOnline && radiusKm && radiusKm > 0) {
+      fitToRadius();
+    } else {
+      googleMapRef.current.setZoom(15);
+    }
+  }, [driverLocation, isOnline, radiusKm, fitToRadius]);
 
   // Fahrer-Marker + Radius-Kreis
   useEffect(() => {

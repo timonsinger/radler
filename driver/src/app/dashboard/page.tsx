@@ -59,9 +59,8 @@ export default function DashboardPage() {
   // Ref synchron halten für den reconnect-Handler
   isOnlineRef.current = isOnline;
 
-  // GPS nur aktiv wenn online oder aktiver Ride
-  const trackingActive = isOnline || !!activeRide;
-  const { position, error: gpsError } = useGeolocation(trackingActive);
+  // GPS immer aktiv (für Kartenansicht auch offline)
+  const { position, error: gpsError } = useGeolocation(true);
 
   const driverLocation = useMemo(
     () => position ? { lat: position.latitude, lng: position.longitude } : null,
@@ -164,9 +163,10 @@ export default function DashboardPage() {
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
 
-  // GPS Position alle 3 Sekunden ans Backend senden
+  // GPS Position alle 3 Sekunden ans Backend senden (nur wenn online oder aktiver Ride)
+  const shouldSendLocation = (isOnline || !!activeRide) && !!position;
   useEffect(() => {
-    if (!position || !trackingActive) return;
+    if (!position || !shouldSendLocation) return;
 
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
 
@@ -185,7 +185,7 @@ export default function DashboardPage() {
     return () => {
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
-  }, [position, trackingActive]);
+  }, [position, shouldSendLocation]);
 
   // Online/Offline Toggle
   const handleToggle = useCallback(async () => {
