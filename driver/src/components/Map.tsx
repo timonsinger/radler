@@ -47,13 +47,13 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     return () => clearInterval(iv);
   }, []);
 
-  // Marker setzen
+  // Marker setzen — fitBounds nur wenn sich Marker tatsächlich ändern
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
 
-    // Nur neu zeichnen wenn sich Marker tatsächlich geändert haben
     const key = JSON.stringify(markers);
-    if (key === prevMarkersKeyRef.current) return;
+    const markersChanged = key !== prevMarkersKeyRef.current;
+    if (!markersChanged) return;
     prevMarkersKeyRef.current = key;
 
     markersRef.current.forEach((m) => m.setMap(null));
@@ -80,14 +80,22 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       if (driverLocation) bounds.extend(driverLocation);
       googleMapRef.current.fitBounds(bounds, { top: 40, bottom: 40, left: 30, right: 30 });
     }
-  }, [markers, driverLocation]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers]);
 
-  // Route
+  // Route — nur einmal berechnen wenn sich Marker ändern
+  const prevRouteKeyRef = useRef('');
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps || !showRoute || markers.length < 2) return;
+
+    const routeKey = JSON.stringify(markers.map(m => ({ lat: m.lat, lng: m.lng })));
+    if (routeKey === prevRouteKeyRef.current) return;
+    prevRouteKeyRef.current = routeKey;
+
     if (!dirRendererRef.current) {
       dirRendererRef.current = new window.google.maps.DirectionsRenderer({
         suppressMarkers: true,
+        preserveViewport: true,
         polylineOptions: { strokeColor: '#14532D', strokeWeight: 5 },
       });
       dirRendererRef.current.setMap(googleMapRef.current);
