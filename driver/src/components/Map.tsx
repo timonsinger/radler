@@ -198,7 +198,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
   return (
     <div className={`relative w-full ${className}`}>
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       {/* Center-on-me button */}
       {driverLocation && (
         <button
