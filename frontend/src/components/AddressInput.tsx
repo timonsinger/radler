@@ -22,7 +22,6 @@ export default function AddressInput({ placeholder, value, onSelect, onChange }:
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Warte bis Google Maps verfügbar ist
     const init = () => {
       if (!inputRef.current || !window.google?.maps?.places) return;
       if (autocompleteRef.current) return;
@@ -69,11 +68,11 @@ export default function AddressInput({ placeholder, value, onSelect, onChange }:
         defaultValue={value}
         placeholder={placeholder}
         onChange={(e) => onChange?.(e.target.value)}
-        className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        className="w-full font-body px-4 py-3.5 rounded-[12px] border border-radler-ink-200 bg-white text-radler-ink-800 placeholder-radler-ink-400 text-sm focus:outline-none focus:ring-2 focus:ring-radler-green-500/30 focus:border-radler-green-500"
       />
       {!ready && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 border-2 border-gray-200 border-t-primary rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-radler-ink-200 border-t-radler-green-500 rounded-full animate-spin" />
         </div>
       )}
     </div>

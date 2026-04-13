@@ -4,26 +4,47 @@
 
 :root {
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Design Tokens */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-modal: 0 12px 40px rgba(0,0,0,0.12);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
 }
 
 body {
   background-color: #F9FAFB;
-  color: #1F2937;
+  color: #2D2D2D;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Safe area für iPhone Notch/Home Bar */
+/* Safe area for iPhone Notch/Home Bar */
 .safe-area-pb {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 /* Google Maps Autocomplete Dropdown */
 .pac-container {
-  border-radius: 16px !important;
-  border: 1px solid #E5E7EB !important;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid #E0E0E0 !important;
+  box-shadow: var(--shadow-hover) !important;
   margin-top: 4px !important;
-  font-family: inherit !important;
+  font-family: 'DM Sans', sans-serif !important;
 }
 
 .pac-item {
@@ -33,11 +54,11 @@ body {
 }
 
 .pac-item:hover {
-  background-color: #F0FDF4 !important;
+  background-color: #E8F5E9 !important;
 }
 
 .pac-item-selected {
-  background-color: #F0FDF4 !important;
+  background-color: #E8F5E9 !important;
 }
 
 /* Smooth page transitions */

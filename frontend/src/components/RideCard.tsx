@@ -11,17 +11,18 @@ interface Ride {
   vehicle_type: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  accepted: 'bg-blue-100 text-blue-700',
-  picked_up: 'bg-orange-100 text-orange-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+/* 4d: Status-Badges */
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-[#FFF8E7] text-[#9E9E9E]',
+  accepted: 'bg-[#E3F2FD] text-[#1565C0]',
+  picked_up: 'bg-[#1A1A1A] text-white',
+  delivered: 'bg-[#E8F5E9] text-[#1B5E20]',
+  cancelled: 'bg-[#FFF0EC] text-[#C44525]',
 };
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Suche Kurier',
-  accepted: 'Kurier kommt',
+  accepted: 'Angenommen',
   picked_up: 'Unterwegs',
   delivered: 'Zugestellt',
   cancelled: 'Storniert',
@@ -29,30 +30,77 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function RideCard({ ride }: { ride: Ride }) {
   const isActive = ['pending', 'accepted', 'picked_up'].includes(ride.status);
+  const isCancelled = ride.status === 'cancelled';
+
   const card = (
-    <div className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 ${isActive ? 'border-primary/30' : ''}`}>
+    <div
+      className={`bg-white rounded-[16px] p-[18px_20px] border ${
+        isActive ? 'border-radler-green-100' : 'border-radler-ink-100'
+      }`}
+      style={{ boxShadow: 'var(--shadow-card)' }}
+    >
+      {/* Header: Badge + Preis */}
       <div className="flex items-start justify-between mb-3">
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[ride.status] || 'bg-gray-100 text-gray-500'}`}>
+        <span
+          className={`font-body font-semibold text-xs px-3.5 py-[5px] rounded-[20px] ${
+            STATUS_STYLES[ride.status] || 'bg-[#F5F5F5] text-[#9E9E9E]'
+          }`}
+        >
           {STATUS_LABELS[ride.status] || ride.status}
         </span>
         <div className="text-right">
-          <span className="font-bold text-gray-900">{formatPrice(Number(ride.price))}</span>
-          <p className="text-xs text-gray-400 mt-0.5">{ride.vehicle_type === 'bicycle' ? '🚲' : '🚛'}</p>
+          <span className={`font-heading font-bold text-xl ${isCancelled ? 'line-through text-radler-ink-300' : 'text-radler-ink-800'}`}>
+            {formatPrice(Number(ride.price))}
+          </span>
+          <p className="font-mono text-[10px] text-radler-ink-300 mt-0.5">
+            {ride.vehicle_type === 'bicycle' ? '🚲 Kurier' : '🚛 Lastenrad'}
+          </p>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-start gap-2">
-          <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-          <p className="text-sm text-gray-700 line-clamp-1">{ride.pickup_address}</p>
+      {/* Route-Visualisierung */}
+      <div className="flex gap-3">
+        {/* Dots + Linie */}
+        <div className="flex flex-col items-center py-1">
+          <div
+            className="w-[10px] h-[10px] rounded-full flex-shrink-0"
+            style={{
+              background: isCancelled ? '#BDBDBD' : '#2E7D32',
+              border: isCancelled ? '2px solid #E0E0E0' : '2px solid #C8E6C9',
+            }}
+          />
+          <div
+            className="w-[2px] flex-1 my-1"
+            style={{
+              background: isCancelled
+                ? '#E0E0E0'
+                : 'linear-gradient(to bottom, #2E7D32, #E85D3A)',
+            }}
+          />
+          <div
+            className="w-[10px] h-[10px] rounded-full flex-shrink-0"
+            style={{
+              background: isCancelled ? '#BDBDBD' : '#E85D3A',
+              border: isCancelled ? '2px solid #E0E0E0' : '2px solid #FFDDD4',
+            }}
+          />
         </div>
-        <div className="flex items-start gap-2">
-          <div className="w-2 h-2 rounded-full bg-error mt-1.5 flex-shrink-0" />
-          <p className="text-sm text-gray-700 line-clamp-1">{ride.dropoff_address}</p>
+        {/* Adressen */}
+        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+          <p className={`font-body text-[13px] line-clamp-1 ${isCancelled ? 'text-radler-ink-300' : 'text-radler-ink-600'}`}>
+            {ride.pickup_address}
+          </p>
+          <p className={`font-body text-[13px] line-clamp-1 ${isCancelled ? 'text-radler-ink-300' : 'text-radler-ink-600'}`}>
+            {ride.dropoff_address}
+          </p>
         </div>
       </div>
 
-      <p className="text-xs text-gray-400 mt-3">{formatDate(ride.created_at)}</p>
+      {/* Footer: Datum + ID */}
+      <div className="border-t border-radler-ink-100 mt-3 pt-2.5 flex items-center justify-between">
+        <span className="font-mono text-[11px] text-radler-ink-300">{formatDate(ride.created_at)}</span>
+        <span className="font-mono text-[11px] text-radler-ink-300">#{ride.id.slice(0, 8)}</span>
+      </div>
     </div>
   );
 

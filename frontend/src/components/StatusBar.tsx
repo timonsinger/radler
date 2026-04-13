@@ -18,7 +18,7 @@ export default function StatusBar({ status }: { status: Status }) {
   if (status === 'cancelled') {
     return (
       <div className="flex items-center justify-center py-3">
-        <span className="text-error font-semibold">Storniert</span>
+        <span className="font-body font-semibold text-radler-coral-400">Storniert</span>
       </div>
     );
   }
@@ -26,7 +26,7 @@ export default function StatusBar({ status }: { status: Status }) {
   if (status === 'expired') {
     return (
       <div className="flex items-center justify-center py-3">
-        <span className="text-gray-500 font-semibold">Abgelaufen</span>
+        <span className="font-body font-semibold text-radler-ink-400">Abgelaufen</span>
       </div>
     );
   }
@@ -42,26 +42,23 @@ export default function StatusBar({ status }: { status: Status }) {
           return (
             <div key={step.key} className="flex-1 flex flex-col items-center">
               <div className="flex items-center w-full">
-                {/* Linie links */}
                 {i > 0 && (
-                  <div className={`flex-1 h-0.5 ${done || active ? 'bg-primary' : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-0.5 ${done || active ? 'bg-radler-green-500' : 'bg-radler-ink-200'}`} />
                 )}
-                {/* Punkt */}
                 <div
                   className={`w-3 h-3 rounded-full flex-shrink-0 ${
                     done
-                      ? 'bg-primary'
+                      ? 'bg-radler-green-500'
                       : active
-                      ? 'bg-primary ring-4 ring-primary/20 animate-pulse'
-                      : 'bg-gray-200'
+                      ? 'bg-radler-green-500 ring-4 ring-radler-green-500/20 animate-pulse'
+                      : 'bg-radler-ink-200'
                   }`}
                 />
-                {/* Linie rechts */}
                 {i < STEPS.length - 1 && (
-                  <div className={`flex-1 h-0.5 ${done ? 'bg-primary' : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-0.5 ${done ? 'bg-radler-green-500' : 'bg-radler-ink-200'}`} />
                 )}
               </div>
-              <span className={`text-xs mt-1.5 text-center ${active ? 'text-primary font-semibold' : done ? 'text-primary' : 'text-gray-400'}`}>
+              <span className={`font-body text-xs mt-1.5 text-center ${active ? 'text-radler-green-500 font-semibold' : done ? 'text-radler-green-500' : 'text-radler-ink-400'}`}>
                 {step.label}
               </span>
             </div>

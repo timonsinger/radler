@@ -12,7 +12,7 @@ const VEHICLES = [
     name: 'Fahrradkurier',
     description: 'Rucksack-Größe',
     basePrice: 'ab 5,50 €',
-    perKm: '4€ Grundgebühr + 1,50€/km',
+    perKm: '4€ + 1,50€/km',
   },
   {
     type: 'cargo_bike' as VehicleType,
@@ -20,7 +20,7 @@ const VEHICLES = [
     name: 'Lastenrad',
     description: 'Größere Pakete',
     basePrice: 'ab 8,00 €',
-    perKm: '6€ Grundgebühr + 2,00€/km',
+    perKm: '6€ + 2,00€/km',
   },
 ];
 
@@ -33,19 +33,22 @@ export default function VehicleSelector({ selected, onSelect }: Props) {
           <button
             key={v.type}
             onClick={() => onSelect(v.type)}
-            className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all appearance-none overflow-hidden ${
+            className={`flex flex-col items-center p-4 rounded-[12px] border-2 transition-all appearance-none overflow-hidden ${
               isSelected
-                ? 'border-primary bg-primary-light'
-                : 'border-gray-200 bg-white active:bg-gray-50'
+                ? 'border-radler-green-500 bg-radler-green-50'
+                : 'border-radler-ink-200 bg-white active:bg-radler-ink-100'
             }`}
+            style={{ transitionDuration: 'var(--duration-fast)' }}
           >
             <span className="text-4xl mb-2">{v.emoji}</span>
-            <span className="font-semibold text-gray-900 text-sm">{v.name}</span>
-            <span className="text-xs text-gray-500 mt-0.5">{v.description}</span>
-            <div className={`mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${isSelected ? 'bg-primary text-primary-fg' : 'bg-gray-100 text-gray-600'}`}>
+            <span className="font-heading font-semibold text-radler-ink-800 text-sm">{v.name}</span>
+            <span className="font-body text-xs text-radler-ink-400 mt-0.5">{v.description}</span>
+            <div className={`mt-2 px-2.5 py-0.5 rounded-[20px] text-xs font-body font-semibold ${
+              isSelected ? 'bg-radler-green-500 text-white' : 'bg-radler-ink-100 text-radler-ink-600'
+            }`}>
               {v.basePrice}
             </div>
-            <span className="text-xs text-gray-400 mt-1">{v.perKm}</span>
+            <span className="font-mono text-xs text-radler-ink-300 mt-1">{v.perKm}</span>
           </button>
         );
       })}
