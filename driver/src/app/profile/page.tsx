@@ -295,10 +295,10 @@ export default function DriverProfilePage() {
                 </div>
               )}
             </div>
-            <div className="bg-gray-50 rounded-2xl p-3 text-center">
+            <Link href="/history" className="bg-gray-50 rounded-2xl p-3 text-center active:bg-gray-100 transition-colors block">
               <p className="text-xl font-black text-gray-900">{stats?.total_rides ?? 0}</p>
               <p className="text-[10px] text-gray-400 mt-1">Fahrten</p>
-            </div>
+            </Link>
             <div className="bg-gray-50 rounded-2xl p-3 text-center">
               <p className="text-xl font-black text-gray-900">
                 {stats ? `${stats.total_earnings.toFixed(0)}€` : '–'}

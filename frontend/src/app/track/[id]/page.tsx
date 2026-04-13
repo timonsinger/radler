@@ -24,6 +24,13 @@ interface Ride {
   driver_name?: string;
   customer_name?: string;
   delivery_photo_url?: string;
+  pickup_photo_url?: string;
+  pickup_method?: string;
+  pickup_code?: string;
+  pickup_code_confirmed?: boolean;
+  delivery_method?: string;
+  delivery_code?: string;
+  delivery_code_confirmed?: boolean;
   rating?: number;
 }
 
@@ -249,6 +256,36 @@ export default function TrackPage() {
           </div>
         </div>
 
+        {/* Übergabe-Infos */}
+        {ride.pickup_method && (
+          <div className="pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-400">Abholung</p>
+              {ride.pickup_code_confirmed && <span className="text-xs text-green-600 font-semibold">✓ Bestätigt</span>}
+              {ride.pickup_method === 'photo' && ride.pickup_photo_url && <span className="text-xs text-green-600 font-semibold">✓ Foto</span>}
+            </div>
+            {ride.pickup_method === 'code' ? (
+              <p className="text-lg font-black text-gray-900 tracking-[0.3em] mt-1">{ride.pickup_code}</p>
+            ) : (
+              <p className="text-sm text-gray-500 mt-1">Per Foto-Nachweis</p>
+            )}
+          </div>
+        )}
+        {ride.delivery_method && (
+          <div className="pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-400">Zustellung</p>
+              {ride.delivery_code_confirmed && <span className="text-xs text-green-600 font-semibold">✓ Bestätigt</span>}
+              {ride.delivery_method === 'photo' && ride.delivery_photo_url && <span className="text-xs text-green-600 font-semibold">✓ Foto</span>}
+            </div>
+            {ride.delivery_method === 'code' ? (
+              <p className="text-lg font-black text-gray-900 tracking-[0.3em] mt-1">{ride.delivery_code}</p>
+            ) : (
+              <p className="text-sm text-gray-500 mt-1">Per Foto-Nachweis</p>
+            )}
+          </div>
+        )}
+
         {ride.driver_name && ['accepted', 'picked_up'].includes(ride.status) && (
           <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
             <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
@@ -308,6 +345,18 @@ export default function TrackPage() {
               {ratingLoading && <p className="text-center text-xs text-gray-400 mt-3">Wird gespeichert…</p>}
             </>
           )}
+        </div>
+      )}
+
+      {/* Abhol-Foto */}
+      {ride.pickup_photo_url && (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Abholung dokumentiert:</p>
+          <img
+            src={`${apiBase}${ride.pickup_photo_url}`}
+            alt="Abholungsfoto"
+            className="w-full rounded-2xl object-cover max-h-64"
+          />
         </div>
       )}
 

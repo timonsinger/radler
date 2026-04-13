@@ -27,8 +27,60 @@ interface AvailableDriver {
   rating?: number;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 type VehicleType = 'bicycle' | 'cargo_bike';
+type HandoverMethod = 'code' | 'photo';
+
+function PinInput({ value, onChange, label, hint }: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  hint: string;
+}) {
+  const refs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+  const digits = value.padEnd(4, '').split('').slice(0, 4);
+
+  function handleChange(index: number, digit: string) {
+    if (!/^\d?$/.test(digit)) return;
+    const arr = [...digits];
+    arr[index] = digit;
+    onChange(arr.join(''));
+    if (digit && index < 3) refs[index + 1].current?.focus();
+  }
+
+  function handleKeyDown(index: number, e: React.KeyboardEvent) {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      refs[index - 1].current?.focus();
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-gray-700 mb-1">{label}</p>
+      <p className="text-xs text-gray-400 mb-3">{hint}</p>
+      <div className="flex gap-3 justify-center">
+        {[0, 1, 2, 3].map((i) => (
+          <input
+            key={i}
+            ref={refs[i]}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={digits[i] || ''}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            className="w-14 h-16 text-center text-2xl font-black border-2 border-gray-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function BookPage() {
   const router = useRouter();
@@ -48,7 +100,12 @@ export default function BookPage() {
   const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
   const socketSubscribedRef = useRef<VehicleType | null>(null);
 
-  // Standort beim Laden automatisch setzen
+  // Übergabe-Optionen
+  const [pickupMethod, setPickupMethod] = useState<HandoverMethod>('code');
+  const [pickupCode, setPickupCode] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState<HandoverMethod>('code');
+  const [deliveryCode, setDeliveryCode] = useState('');
+
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -63,7 +120,6 @@ export default function BookPage() {
     );
   }, []);
 
-  // Verfügbare Fahrer laden (REST) – initialer Load
   useEffect(() => {
     const vt = vehicleType || 'bicycle';
     apiFetch(`/api/drivers/available?vehicle_type=${vt}`)
@@ -73,26 +129,20 @@ export default function BookPage() {
       .catch(() => {});
   }, [vehicleType]);
 
-  // WebSocket: Fahrer-Positionen abonnieren
   useEffect(() => {
     let socket: ReturnType<typeof getSocket> | null = null;
     try {
       socket = getSocket();
       const vt = vehicleType || 'bicycle';
-
-      // Altes Abo kündigen
       if (socketSubscribedRef.current && socketSubscribedRef.current !== vt) {
         socket.emit('drivers:unsubscribe');
       }
-
       socket.emit('drivers:subscribe', { vehicle_type: vt });
       socketSubscribedRef.current = vt;
-
       socket.on('drivers:positions', (data: { drivers: AvailableDriver[] }) => {
         setAvailableDrivers(data.drivers);
       });
     } catch { /* nicht eingeloggt */ }
-
     return () => {
       if (socket) {
         socket.off('drivers:positions');
@@ -125,6 +175,10 @@ export default function BookPage() {
           price,
           invite_email: inviteEmail || undefined,
           invite_role: inviteRole || undefined,
+          pickup_method: pickupMethod,
+          pickup_code: pickupMethod === 'code' ? pickupCode : undefined,
+          delivery_method: deliveryMethod,
+          delivery_code: deliveryMethod === 'code' ? deliveryCode : undefined,
         }),
       });
       if (data.error) throw new Error(data.error);
@@ -146,9 +200,13 @@ export default function BookPage() {
     });
   }
 
-  const stepTitles = ['Abholort', 'Zielort', 'Fahrzeug', 'Zusammenfassung'];
+  const stepTitles = ['Abholort', 'Zielort', 'Fahrzeug', 'Übergabe', 'Zusammenfassung'];
   const driverCount = availableDrivers.length;
-  const showDrivers = step <= 4;
+  const showDrivers = step <= 5;
+
+  const canProceedStep4 =
+    (pickupMethod === 'photo' || pickupCode.length === 4) &&
+    (deliveryMethod === 'photo' || deliveryCode.length === 4);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -165,7 +223,6 @@ export default function BookPage() {
           <img src="/radler_logo.svg" alt="Radler" className="h-7 w-auto" />
         </div>
 
-        {/* Step Indicator */}
         <div className="flex items-center gap-2">
           {stepTitles.map((title, i) => (
             <div key={i} className="flex items-center gap-2 flex-1">
@@ -248,7 +305,7 @@ export default function BookPage() {
               disabled={!pickup}
               className="w-full bg-primary text-primary-fg font-semibold py-4 rounded-2xl disabled:opacity-40 active:bg-primary-dark transition-colors"
             >
-              Weiter →
+              Weiter
             </button>
           </div>
         )}
@@ -307,14 +364,14 @@ export default function BookPage() {
 
             <div className="flex gap-3">
               <button onClick={() => setStep(1)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl active:bg-gray-200">
-                ← Zurück
+                Zurück
               </button>
               <button
                 onClick={() => setStep(3)}
                 disabled={!dropoff}
                 className="flex-1 bg-primary text-primary-fg font-semibold py-4 rounded-2xl disabled:opacity-40 active:bg-primary-dark transition-colors"
               >
-                Weiter →
+                Weiter
               </button>
             </div>
           </div>
@@ -330,21 +387,127 @@ export default function BookPage() {
 
             <div className="flex gap-3">
               <button onClick={() => setStep(2)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
-                ← Zurück
+                Zurück
               </button>
               <button
                 onClick={() => setStep(4)}
                 disabled={!vehicleType}
                 className="flex-1 bg-primary text-primary-fg font-semibold py-4 rounded-2xl disabled:opacity-40 active:bg-primary-dark transition-colors"
               >
-                Weiter →
+                Weiter
               </button>
             </div>
           </div>
         )}
 
-        {/* Schritt 4: Zusammenfassung */}
-        {step === 4 && pickup && dropoff && vehicleType && (
+        {/* Schritt 4: Übergabe-Optionen */}
+        {step === 4 && (
+          <div className="space-y-4">
+            {/* Abholung */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <h3 className="font-semibold text-gray-900">Abholung</h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setPickupMethod('code')}
+                  className={`py-3 px-2 rounded-xl text-sm font-semibold transition-colors ${
+                    pickupMethod === 'code'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  🔑 Persönliche Übergabe
+                </button>
+                <button
+                  onClick={() => setPickupMethod('photo')}
+                  className={`py-3 px-2 rounded-xl text-sm font-semibold transition-colors ${
+                    pickupMethod === 'photo'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  📸 Paket ablegen
+                </button>
+              </div>
+
+              {pickupMethod === 'code' ? (
+                <PinInput
+                  value={pickupCode}
+                  onChange={setPickupCode}
+                  label="Lege deinen Abhol-Code fest"
+                  hint="Gib dem Kurier diesen Code bei der Abholung"
+                />
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <p className="text-sm text-gray-600">Der Kurier fotografiert das abgelegte Paket als Nachweis</p>
+                </div>
+              )}
+            </div>
+
+            {/* Zustellung */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <h3 className="font-semibold text-gray-900">Zustellung</h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setDeliveryMethod('code')}
+                  className={`py-3 px-2 rounded-xl text-sm font-semibold transition-colors ${
+                    deliveryMethod === 'code'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  🔑 Persönliche Übergabe
+                </button>
+                <button
+                  onClick={() => setDeliveryMethod('photo')}
+                  className={`py-3 px-2 rounded-xl text-sm font-semibold transition-colors ${
+                    deliveryMethod === 'photo'
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  📸 Paket ablegen
+                </button>
+              </div>
+
+              {deliveryMethod === 'code' ? (
+                <PinInput
+                  value={deliveryCode}
+                  onChange={setDeliveryCode}
+                  label="Lege deinen Übergabe-Code fest"
+                  hint="Gib dem Kurier diesen Code bei der Zustellung"
+                />
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 text-center">
+                  <p className="text-sm text-gray-600">Der Kurier fotografiert das abgelieferte Paket als Nachweis</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(3)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
+                Zurück
+              </button>
+              <button
+                onClick={() => setStep(5)}
+                disabled={!canProceedStep4}
+                className="flex-1 bg-primary text-primary-fg font-semibold py-4 rounded-2xl disabled:opacity-40 active:bg-primary-dark transition-colors"
+              >
+                Weiter
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Schritt 5: Zusammenfassung */}
+        {step === 5 && pickup && dropoff && vehicleType && (
           <div className="space-y-4">
             <div className="relative">
               <Map
@@ -372,6 +535,9 @@ export default function BookPage() {
                 <div>
                   <p className="text-xs text-gray-400">Abholung</p>
                   <p className="text-sm text-gray-900">{pickup.address}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {pickupMethod === 'code' ? `Code: ${pickupCode}` : 'Foto-Nachweis'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -379,6 +545,9 @@ export default function BookPage() {
                 <div>
                   <p className="text-xs text-gray-400">Ziel</p>
                   <p className="text-sm text-gray-900">{dropoff.address}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {deliveryMethod === 'code' ? `Code: ${deliveryCode}` : 'Foto-Nachweis'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
@@ -398,8 +567,8 @@ export default function BookPage() {
             )}
 
             <div className="flex gap-3">
-              <button onClick={() => setStep(3)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
-                ← Zurück
+              <button onClick={() => setStep(4)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
+                Zurück
               </button>
               <button
                 onClick={handleBook}

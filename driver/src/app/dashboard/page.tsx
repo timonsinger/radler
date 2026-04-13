@@ -27,6 +27,12 @@ interface Ride {
   price: number;
   vehicle_type: string;
   customer_name?: string;
+  pickup_method?: string;
+  pickup_code_confirmed?: boolean;
+  pickup_photo_url?: string;
+  delivery_method?: string;
+  delivery_code_confirmed?: boolean;
+  delivery_photo_url?: string;
 }
 
 export default function DashboardPage() {

@@ -17,6 +17,12 @@ interface Ride {
   price: number;
   vehicle_type: string;
   customer_name?: string;
+  pickup_method?: string;
+  pickup_code_confirmed?: boolean;
+  pickup_photo_url?: string;
+  delivery_method?: string;
+  delivery_code_confirmed?: boolean;
+  delivery_photo_url?: string;
 }
 
 interface Props {
@@ -31,56 +37,176 @@ const ACTION = {
   picked_up: { label: 'ZUGESTELLT', nextStatus: 'delivered', color: 'bg-primary' },
 };
 
+function CodeInput({ onVerify, verifying, error }: {
+  onVerify: (code: string) => void;
+  verifying: boolean;
+  error: string | null;
+}) {
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const refs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+
+  function handleChange(index: number, value: string) {
+    if (!/^\d?$/.test(value)) return;
+    const newDigits = [...digits];
+    newDigits[index] = value;
+    setDigits(newDigits);
+    if (value && index < 3) refs[index + 1].current?.focus();
+  }
+
+  function handleKeyDown(index: number, e: React.KeyboardEvent) {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      refs[index - 1].current?.focus();
+    }
+  }
+
+  const code = digits.join('');
+  const isComplete = code.length === 4;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-3 justify-center">
+        {[0, 1, 2, 3].map((i) => (
+          <input
+            key={i}
+            ref={refs[i]}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={digits[i]}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            className={`w-14 h-16 text-center text-2xl font-black rounded-xl outline-none border-2 transition-colors ${
+              error ? 'border-red-400 bg-red-50 animate-shake' : 'border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/30'
+            }`}
+          />
+        ))}
+      </div>
+      {error && <p className="text-center text-sm text-red-500 font-semibold">{error}</p>}
+      <button
+        onClick={() => onVerify(code)}
+        disabled={!isComplete || verifying}
+        className="w-full bg-primary text-white font-semibold py-3 rounded-2xl disabled:opacity-40 active:bg-primary/80"
+      >
+        {verifying ? 'Prüfe...' : 'Code bestätigen'}
+      </button>
+    </div>
+  );
+}
+
 export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userName }: Props) {
   const [loading, setLoading] = useState(false);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pickup verification state
+  const [pickupVerified, setPickupVerified] = useState(ride.pickup_code_confirmed || false);
+  const [pickupPhotoUrl, setPickupPhotoUrl] = useState<string | null>(ride.pickup_photo_url || null);
+  const [pickupPhotoPreview, setPickupPhotoPreview] = useState<string | null>(null);
+  const [pickupPhotoUploading, setPickupPhotoUploading] = useState(false);
+  const [pickupCodeError, setPickupCodeError] = useState<string | null>(null);
+  const [pickupVerifying, setPickupVerifying] = useState(false);
+  const pickupFileRef = useRef<HTMLInputElement>(null);
+
+  // Delivery verification state
+  const [deliveryVerified, setDeliveryVerified] = useState(ride.delivery_code_confirmed || false);
+  const [deliveryPhotoUrl, setDeliveryPhotoUrl] = useState<string | null>(ride.delivery_photo_url || null);
+  const [deliveryPhotoPreview, setDeliveryPhotoPreview] = useState<string | null>(null);
+  const [deliveryPhotoUploading, setDeliveryPhotoUploading] = useState(false);
+  const [deliveryCodeError, setDeliveryCodeError] = useState<string | null>(null);
+  const [deliveryVerifying, setDeliveryVerifying] = useState(false);
+  const deliveryFileRef = useRef<HTMLInputElement>(null);
+
   const action = ACTION[ride.status as keyof typeof ACTION];
+  const pickupMethod = ride.pickup_method || 'photo';
+  const deliveryMethod = ride.delivery_method || 'photo';
 
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${
     ride.status === 'accepted' ? `${ride.pickup_lat},${ride.pickup_lng}` : `${ride.dropoff_lat},${ride.dropoff_lng}`
   }&travelmode=bicycling`;
 
-  async function handlePhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
+  // Can proceed to next status?
+  const pickupReady = pickupMethod === 'code' ? pickupVerified : !!pickupPhotoUrl;
+  const deliveryReady = deliveryMethod === 'code' ? deliveryVerified : !!deliveryPhotoUrl;
+  const canProceed = ride.status === 'accepted' ? pickupReady : deliveryReady;
+
+  async function handleVerifyPickup(code: string) {
+    setPickupVerifying(true);
+    setPickupCodeError(null);
+    try {
+      const data = await apiFetch(`/api/rides/${ride.id}/verify-pickup`, {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+      if (data.error) throw new Error(data.error);
+      setPickupVerified(true);
+    } catch (err) {
+      setPickupCodeError(err instanceof Error ? err.message : 'Falscher Code');
+    } finally {
+      setPickupVerifying(false);
+    }
+  }
+
+  async function handleVerifyDelivery(code: string) {
+    setDeliveryVerifying(true);
+    setDeliveryCodeError(null);
+    try {
+      const data = await apiFetch(`/api/rides/${ride.id}/verify-delivery`, {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+      if (data.error) throw new Error(data.error);
+      setDeliveryVerified(true);
+    } catch (err) {
+      setDeliveryCodeError(err instanceof Error ? err.message : 'Falscher Code');
+    } finally {
+      setDeliveryVerifying(false);
+    }
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>, type: 'pickup' | 'delivery') {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Vorschau anzeigen
     const reader = new FileReader();
-    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.onload = (ev) => {
+      if (type === 'pickup') setPickupPhotoPreview(ev.target?.result as string);
+      else setDeliveryPhotoPreview(ev.target?.result as string);
+    };
     reader.readAsDataURL(file);
 
-    // Hochladen
-    setPhotoUploading(true);
+    const setUploading = type === 'pickup' ? setPickupPhotoUploading : setDeliveryPhotoUploading;
+    const setUrl = type === 'pickup' ? setPickupPhotoUrl : setDeliveryPhotoUrl;
+    const endpoint = type === 'pickup' ? 'pickup-photo' : 'photo';
+
+    setUploading(true);
     try {
       const formData = new FormData();
       formData.append('photo', file);
-
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/rides/${ride.id}/photo`, {
+      const response = await fetch(`${apiUrl}/api/rides/${ride.id}/${endpoint}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Upload fehlgeschlagen');
-      setPhotoUrl(data.delivery_photo_url);
+      setUrl(type === 'pickup' ? data.pickup_photo_url : data.delivery_photo_url);
     } catch (err) {
       console.error('Foto-Upload fehlgeschlagen:', err);
-      setPhotoPreview(null);
+      if (type === 'pickup') setPickupPhotoPreview(null);
+      else setDeliveryPhotoPreview(null);
     } finally {
-      setPhotoUploading(false);
+      setUploading(false);
     }
   }
 
   async function handleAction() {
-    if (!action) return;
-    // Für Zustellung: Foto erforderlich
-    if (action.nextStatus === 'delivered' && !photoUrl) return;
+    if (!action || !canProceed) return;
     setLoading(true);
     try {
       const data = await apiFetch(`/api/rides/${ride.id}/status`, {
@@ -102,8 +228,13 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
     { lat: Number(ride.dropoff_lat), lng: Number(ride.dropoff_lng), color: '#EF4444', label: 'B' },
   ];
 
-  const needsPhoto = ride.status === 'picked_up';
-  const canDeliver = !needsPhoto || !!photoUrl;
+  // Determine which verification UI to show
+  const isPickupPhase = ride.status === 'accepted';
+  const currentMethod = isPickupPhase ? pickupMethod : deliveryMethod;
+  const currentPhotoPreview = isPickupPhase ? pickupPhotoPreview : deliveryPhotoPreview;
+  const currentPhotoUrl = isPickupPhase ? pickupPhotoUrl : deliveryPhotoUrl;
+  const currentPhotoUploading = isPickupPhase ? pickupPhotoUploading : deliveryPhotoUploading;
+  const currentFileRef = isPickupPhase ? pickupFileRef : deliveryFileRef;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -130,7 +261,6 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
 
       {/* Info & Buttons */}
       <div className="bg-white">
-        {/* Griff */}
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 bg-gray-300 rounded-full" />
         </div>
@@ -182,60 +312,71 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
             </div>
           </div>
 
-          {/* Foto-Bereich (nur bei picked_up) */}
-          {needsPhoto && (
-            <div className="mb-4">
-              {!photoPreview ? (
-                <div>
-                  <p className="text-xs text-gray-500 mb-2 text-center">
-                    Fotografiere das abgelieferte Paket als Nachweis
-                  </p>
+          {/* Verifizierung */}
+          <div className="mb-4">
+            {currentMethod === 'code' && !canProceed && (
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-700 text-center">
+                  {isPickupPhase ? '🔑 Abhol-Code eingeben' : '🔑 Übergabe-Code eingeben'}
+                </p>
+                <CodeInput
+                  onVerify={isPickupPhase ? handleVerifyPickup : handleVerifyDelivery}
+                  verifying={isPickupPhase ? pickupVerifying : deliveryVerifying}
+                  error={isPickupPhase ? pickupCodeError : deliveryCodeError}
+                />
+              </div>
+            )}
+
+            {currentMethod === 'code' && canProceed && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold">✓</span>
+                </div>
+                <p className="text-sm font-semibold text-green-700">
+                  {isPickupPhase ? 'Abhol-Code bestätigt' : 'Übergabe-Code bestätigt'}
+                </p>
+              </div>
+            )}
+
+            {currentMethod === 'photo' && !currentPhotoUrl && (
+              <div>
+                <p className="text-xs text-gray-500 mb-2 text-center">
+                  {isPickupPhase ? 'Fotografiere das Paket bei der Abholung' : 'Fotografiere das abgelieferte Paket als Nachweis'}
+                </p>
+                {!currentPhotoPreview ? (
                   <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={photoUploading}
+                    onClick={() => currentFileRef.current?.click()}
+                    disabled={currentPhotoUploading}
                     className="w-full bg-gray-50 border-2 border-dashed border-gray-300 text-gray-600 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:bg-gray-100 disabled:opacity-50"
                   >
                     <span className="text-xl">📸</span>
-                    {photoUploading ? 'Wird hochgeladen...' : 'FOTO MACHEN'}
+                    {currentPhotoUploading ? 'Wird hochgeladen...' : 'FOTO MACHEN'}
                   </button>
+                ) : (
+                  <div className="relative">
+                    <img src={currentPhotoPreview} alt="Foto" className="w-full h-40 object-cover rounded-2xl" />
+                    {currentPhotoUploading && (
+                      <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center">
+                        <p className="text-white text-sm font-semibold">Wird hochgeladen...</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentMethod === 'photo' && currentPhotoUrl && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold">✓</span>
                 </div>
-              ) : (
-                <div className="relative">
-                  <img
-                    src={photoPreview}
-                    alt="Ablieferungsfoto"
-                    className="w-full h-40 object-cover rounded-2xl"
-                  />
-                  {photoUploading && (
-                    <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center">
-                      <p className="text-white text-sm font-semibold">Wird hochgeladen...</p>
-                    </div>
-                  )}
-                  {photoUrl && (
-                    <div className="absolute top-2 right-2 bg-primary rounded-full w-7 h-7 flex items-center justify-center">
-                      <span className="text-white text-sm">✓</span>
-                    </div>
-                  )}
-                  {!photoUploading && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 w-full text-xs text-gray-500 text-center"
-                    >
-                      Foto erneut aufnehmen
-                    </button>
-                  )}
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handlePhotoCapture}
-              />
-            </div>
-          )}
+                <p className="text-sm font-semibold text-green-700">Foto hochgeladen</p>
+              </div>
+            )}
+
+            <input ref={pickupFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoUpload(e, 'pickup')} />
+            <input ref={deliveryFileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoUpload(e, 'delivery')} />
+          </div>
 
           {/* Navigation Button */}
           <a
@@ -252,15 +393,15 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
           {action && (
             <button
               onClick={handleAction}
-              disabled={loading || !canDeliver}
+              disabled={loading || !canProceed}
               className={`w-full ${action.color} text-white font-black text-lg py-5 rounded-2xl shadow-lg disabled:opacity-40 active:scale-[0.98] transition-all`}
             >
               {loading ? 'Bitte warten...' : `✓ ${action.label}`}
             </button>
           )}
-          {needsPhoto && !photoUrl && (
+          {!canProceed && (
             <p className="text-center text-xs text-gray-400 mt-2">
-              Bitte zuerst ein Foto machen
+              {currentMethod === 'code' ? 'Bitte zuerst den Code eingeben' : 'Bitte zuerst ein Foto machen'}
             </p>
           )}
         </div>

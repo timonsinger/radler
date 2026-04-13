@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getStoredUser, logout } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
 import NavBar from '@/components/NavBar';
@@ -183,10 +184,10 @@ export default function ProfilePage() {
         <div className="bg-white rounded-3xl p-5 shadow-sm">
           <h3 className="font-semibold text-gray-900 mb-3">Meine Statistiken</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 rounded-2xl p-4 text-center">
+            <Link href="/history" className="bg-gray-50 rounded-2xl p-4 text-center active:bg-gray-100 transition-colors block">
               <p className="text-2xl font-black text-gray-900">{user.stats?.total_bookings ?? 0}</p>
               <p className="text-xs text-gray-400 mt-1">Buchungen</p>
-            </div>
+            </Link>
             <div className="bg-gray-50 rounded-2xl p-4 text-center">
               <p className="text-2xl font-black text-gray-900">
                 {user.role === 'customer' ? 'Kunde' : 'Fahrer'}

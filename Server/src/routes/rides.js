@@ -76,6 +76,10 @@ router.post('/', async (req, res) => {
       distance_km,
       invite_email,
       invite_role,
+      pickup_method,
+      pickup_code,
+      delivery_method,
+      delivery_code,
     } = req.body;
 
     if (!pickup_address || !pickup_lat || !pickup_lng) {
@@ -88,14 +92,31 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Fahrzeugtyp muss bicycle oder cargo_bike sein' });
     }
 
+    // Pickup/Delivery Method validieren
+    const pMethod = pickup_method || 'code';
+    const dMethod = delivery_method || 'code';
+    if (!['code', 'photo'].includes(pMethod)) {
+      return res.status(400).json({ error: 'pickup_method muss code oder photo sein' });
+    }
+    if (!['code', 'photo'].includes(dMethod)) {
+      return res.status(400).json({ error: 'delivery_method muss code oder photo sein' });
+    }
+    if (pMethod === 'code' && (!pickup_code || !/^\d{4}$/.test(pickup_code))) {
+      return res.status(400).json({ error: 'pickup_code muss 4 Ziffern sein' });
+    }
+    if (dMethod === 'code' && (!delivery_code || !/^\d{4}$/.test(delivery_code))) {
+      return res.status(400).json({ error: 'delivery_code muss 4 Ziffern sein' });
+    }
+
     const price = calculatePrice(vehicle_type, distance_km);
 
     const rideResult = await db.query(
       `INSERT INTO rides
         (customer_id, vehicle_type, pickup_address, pickup_lat, pickup_lng,
          dropoff_address, dropoff_lat, dropoff_lng, distance_km, price,
-         invite_email, invite_role)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         invite_email, invite_role,
+         pickup_method, pickup_code, delivery_method, delivery_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         req.user.userId,
@@ -110,6 +131,10 @@ router.post('/', async (req, res) => {
         price.toFixed(2),
         invite_email || null,
         invite_role || null,
+        pMethod,
+        pMethod === 'code' ? pickup_code : null,
+        dMethod,
+        dMethod === 'code' ? delivery_code : null,
       ]
     );
     const ride = rideResult.rows[0];
@@ -195,6 +220,62 @@ router.get('/', async (req, res) => {
     res.json({ rides: result.rows });
   } catch (err) {
     console.error('Fehler bei GET /rides:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// GET /api/rides/history – Paginierte Auftragshistorie
+router.get('/history', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    let countQuery, dataQuery;
+
+    if (req.user.role === 'customer') {
+      countQuery = await db.query(
+        "SELECT COUNT(*) AS total FROM rides WHERE customer_id = $1 AND status IN ('delivered', 'cancelled')",
+        [req.user.userId]
+      );
+      dataQuery = await db.query(
+        `SELECT r.*, u.name AS driver_name
+         FROM rides r
+         LEFT JOIN users u ON u.id = r.driver_id
+         WHERE r.customer_id = $1 AND r.status IN ('delivered', 'cancelled')
+         ORDER BY r.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user.userId, limit, offset]
+      );
+    } else if (req.user.role === 'driver') {
+      countQuery = await db.query(
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'delivered' THEN price ELSE 0 END), 0) AS total_earnings FROM rides WHERE driver_id = $1 AND status IN ('delivered', 'cancelled')",
+        [req.user.userId]
+      );
+      dataQuery = await db.query(
+        `SELECT r.*, u.name AS customer_name
+         FROM rides r
+         LEFT JOIN users u ON u.id = r.customer_id
+         WHERE r.driver_id = $1 AND r.status IN ('delivered', 'cancelled')
+         ORDER BY r.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user.userId, limit, offset]
+      );
+    } else {
+      return res.status(403).json({ error: 'Ungültige Rolle' });
+    }
+
+    const total = parseInt(countQuery.rows[0].total, 10);
+    const totalEarnings = countQuery.rows[0].total_earnings || 0;
+    res.json({
+      rides: dataQuery.rows,
+      total,
+      totalEarnings: parseFloat(totalEarnings),
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error('Fehler bei GET /rides/history:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });
@@ -393,9 +474,24 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
 
-    // Foto erforderlich vor Zustellung
-    if (status === 'delivered' && !ride.delivery_photo_url) {
-      return res.status(400).json({ error: 'Bitte zuerst ein Foto der Ablieferung machen' });
+    // Pickup-Verifizierung prüfen
+    if (status === 'picked_up') {
+      if (ride.pickup_method === 'code' && !ride.pickup_code_confirmed) {
+        return res.status(400).json({ error: 'Abhol-Code muss zuerst bestätigt werden' });
+      }
+      if (ride.pickup_method === 'photo' && !ride.pickup_photo_url) {
+        return res.status(400).json({ error: 'Bitte zuerst ein Foto der Abholung machen' });
+      }
+    }
+
+    // Delivery-Verifizierung prüfen
+    if (status === 'delivered') {
+      if (ride.delivery_method === 'code' && !ride.delivery_code_confirmed) {
+        return res.status(400).json({ error: 'Übergabe-Code muss zuerst bestätigt werden' });
+      }
+      if (ride.delivery_method === 'photo' && !ride.delivery_photo_url) {
+        return res.status(400).json({ error: 'Bitte zuerst ein Foto der Ablieferung machen' });
+      }
     }
 
     const updatedRideResult = await db.query(
@@ -481,6 +577,131 @@ router.patch('/:id/cancel', async (req, res) => {
     res.json({ ride: updatedRide });
   } catch (err) {
     console.error('Fehler bei PATCH /rides/:id/cancel:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// POST /api/rides/:id/verify-pickup – Abhol-Code bestätigen
+router.post('/:id/verify-pickup', async (req, res) => {
+  try {
+    if (req.user.role !== 'driver') {
+      return res.status(403).json({ error: 'Nur Fahrer können Codes bestätigen' });
+    }
+    const { id } = req.params;
+    const { code } = req.body;
+
+    const rideResult = await db.query('SELECT * FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    if (ride.driver_id !== req.user.userId) return res.status(403).json({ error: 'Du bist nicht der zugewiesene Fahrer' });
+    if (ride.pickup_method !== 'code') return res.status(400).json({ error: 'Dieser Auftrag verwendet keinen Abhol-Code' });
+    if (ride.status !== 'accepted') return res.status(400).json({ error: 'Auftrag ist nicht im Status accepted' });
+
+    if (code !== ride.pickup_code) {
+      return res.status(400).json({ error: 'Falscher Code' });
+    }
+
+    await db.query('UPDATE rides SET pickup_code_confirmed = true WHERE id = $1', [id]);
+    console.log(`Abhol-Code bestätigt für Auftrag ${id}`);
+    res.json({ verified: true });
+  } catch (err) {
+    console.error('Fehler bei POST /rides/:id/verify-pickup:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// POST /api/rides/:id/verify-delivery – Übergabe-Code bestätigen
+router.post('/:id/verify-delivery', async (req, res) => {
+  try {
+    if (req.user.role !== 'driver') {
+      return res.status(403).json({ error: 'Nur Fahrer können Codes bestätigen' });
+    }
+    const { id } = req.params;
+    const { code } = req.body;
+
+    const rideResult = await db.query('SELECT * FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    if (ride.driver_id !== req.user.userId) return res.status(403).json({ error: 'Du bist nicht der zugewiesene Fahrer' });
+    if (ride.delivery_method !== 'code') return res.status(400).json({ error: 'Dieser Auftrag verwendet keinen Übergabe-Code' });
+    if (ride.status !== 'picked_up') return res.status(400).json({ error: 'Auftrag ist nicht im Status picked_up' });
+
+    if (code !== ride.delivery_code) {
+      return res.status(400).json({ error: 'Falscher Code' });
+    }
+
+    await db.query('UPDATE rides SET delivery_code_confirmed = true WHERE id = $1', [id]);
+    console.log(`Übergabe-Code bestätigt für Auftrag ${id}`);
+    res.json({ verified: true });
+  } catch (err) {
+    console.error('Fehler bei POST /rides/:id/verify-delivery:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// POST /api/rides/:id/pickup-photo – Abholungsfoto hochladen
+router.post('/:id/pickup-photo', upload.single('photo'), async (req, res) => {
+  try {
+    if (req.user.role !== 'driver') {
+      return res.status(403).json({ error: 'Nur Fahrer können Fotos hochladen' });
+    }
+    const { id } = req.params;
+    if (!req.file) return res.status(400).json({ error: 'Kein Foto hochgeladen' });
+
+    const rideResult = await db.query('SELECT * FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    if (ride.driver_id !== req.user.userId) return res.status(403).json({ error: 'Du bist nicht der zugewiesene Fahrer' });
+    if (ride.status !== 'accepted') return res.status(400).json({ error: 'Foto nur bei Status accepted möglich' });
+
+    const photoUrl = `/uploads/${req.file.filename}`;
+    await db.query('UPDATE rides SET pickup_photo_url = $1 WHERE id = $2', [photoUrl, id]);
+
+    console.log(`Abhol-Foto hochgeladen für Auftrag ${id}: ${photoUrl}`);
+    res.json({ pickup_photo_url: photoUrl });
+  } catch (err) {
+    console.error('Fehler bei POST /rides/:id/pickup-photo:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// POST /api/rides/:id/rating – Bewertung abgeben
+router.post('/:id/rating', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Bewertung muss zwischen 1 und 5 liegen' });
+    }
+
+    const rideResult = await db.query('SELECT * FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    if (ride.customer_id !== req.user.userId) return res.status(403).json({ error: 'Kein Zugriff' });
+    if (ride.status !== 'delivered') return res.status(400).json({ error: 'Nur zugestellte Aufträge können bewertet werden' });
+
+    await db.query('ALTER TABLE rides ADD COLUMN IF NOT EXISTS rating INTEGER');
+    await db.query('UPDATE rides SET rating = $1 WHERE id = $2', [rating, id]);
+
+    // Fahrer-Durchschnitt aktualisieren
+    if (ride.driver_id) {
+      const avgResult = await db.query(
+        "SELECT AVG(rating)::DECIMAL(3,2) AS avg_rating FROM rides WHERE driver_id = $1 AND rating IS NOT NULL",
+        [ride.driver_id]
+      );
+      if (avgResult.rows[0]?.avg_rating) {
+        await db.query('UPDATE drivers SET rating = $1 WHERE user_id = $2', [avgResult.rows[0].avg_rating, ride.driver_id]);
+      }
+    }
+
+    res.json({ rating });
+  } catch (err) {
+    console.error('Fehler bei POST /rides/:id/rating:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 
 interface Stats {
@@ -41,7 +42,7 @@ export default function StatsCard() {
       <div className="px-4 py-3 border-b border-gray-100">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Heute</p>
       </div>
-      <div className="grid grid-cols-3 divide-x divide-gray-100">
+      <Link href="/history" className="grid grid-cols-3 divide-x divide-gray-100 active:bg-gray-50 transition-colors">
         {items.map((item) => (
           <div key={item.label} className="flex flex-col items-center py-4 px-2">
             <span className="text-xl mb-1">{item.icon}</span>
@@ -49,7 +50,7 @@ export default function StatsCard() {
             <span className="text-xs text-gray-400 text-center mt-0.5">{item.label}</span>
           </div>
         ))}
-      </div>
+      </Link>
     </div>
   );
 }

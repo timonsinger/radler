@@ -81,6 +81,16 @@ async function migrate() {
   `);
   console.log('✅ Tabelle invite_tokens erstellt/geprüft');
 
+  // Neue Spalten für Abhol-/Übergabe-Codes und Foto-Nachweis
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_method VARCHAR(10) DEFAULT 'code'`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_code VARCHAR(4)`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_code_confirmed BOOLEAN DEFAULT false`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS pickup_photo_url TEXT`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(10) DEFAULT 'code'`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS delivery_code VARCHAR(4)`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS delivery_code_confirmed BOOLEAN DEFAULT false`);
+  console.log('✅ Spalten für pickup/delivery method/code/photo erstellt/geprüft');
+
   // Neue Spalten für Profil-Feature
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT`);
   console.log('✅ Spalte users.profile_image_url erstellt/geprüft');
