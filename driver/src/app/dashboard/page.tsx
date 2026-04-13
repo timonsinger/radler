@@ -135,6 +135,13 @@ export default function DashboardPage() {
       setRejectionAlert(`Dein Account wurde abgelehnt. Grund: ${data.reason}. Bitte kontaktiere uns.`);
     };
 
+    const handleForcedOffline = (data: { reason: string }) => {
+      setIsOnline(false);
+      setPendingRide(null);
+      setApprovalToast(data.reason || 'Du wurdest vom Admin offline geschaltet');
+      setTimeout(() => setApprovalToast(null), 6000);
+    };
+
     socket.on('ride:new', handleRideNew);
     socket.on('ride:removed', handleRideRemoved);
     socket.on('ride:status_update', handleStatusUpdate);
@@ -142,6 +149,7 @@ export default function DashboardPage() {
     socket.on('ride:rated', handleRideRated);
     socket.on('driver:approved', handleDriverApproved);
     socket.on('driver:rejected', handleDriverRejected);
+    socket.on('driver:forced_offline', handleForcedOffline);
 
     return () => {
       socket.off('ride:new', handleRideNew);
@@ -151,6 +159,7 @@ export default function DashboardPage() {
       socket.off('ride:rated', handleRideRated);
       socket.off('driver:approved', handleDriverApproved);
       socket.off('driver:rejected', handleDriverRejected);
+      socket.off('driver:forced_offline', handleForcedOffline);
       disconnectSocket();
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen

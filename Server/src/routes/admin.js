@@ -342,6 +342,29 @@ router.patch('/drivers/:userId/reject', async (req, res) => {
   }
 });
 
+// PATCH /api/admin/drivers/:userId/force-offline — Fahrer offline schalten
+router.patch('/drivers/:userId/force-offline', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await db.query('UPDATE drivers SET is_online = false WHERE user_id = $1', [userId]);
+
+    try {
+      const io = getIO();
+      io.to(`user:${userId}`).emit('driver:forced_offline', {
+        reason: 'Du wurdest vom Admin offline geschaltet',
+      });
+    } catch (socketErr) {
+      console.error('Socket.io Fehler bei driver:forced_offline:', socketErr.message);
+    }
+
+    console.log(`Fahrer ${userId} offline geschaltet von Admin ${req.user.userId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Fehler bei PATCH /admin/drivers/:userId/force-offline:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 // PATCH /api/admin/users/:id/ban — Nutzer sperren/entsperren
 router.patch('/users/:id/ban', async (req, res) => {
   try {

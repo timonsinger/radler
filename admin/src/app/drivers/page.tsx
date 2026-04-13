@@ -100,6 +100,16 @@ function DriversPage() {
     finally { setActionLoading(null); }
   };
 
+  const forceOffline = async (userId: string, name: string) => {
+    if (!confirm(`Fahrer ${name} offline schalten?`)) return;
+    setActionLoading(userId);
+    try {
+      await apiFetch(`/api/admin/drivers/${userId}/force-offline`, { method: 'PATCH' });
+      load();
+    } catch (err) { console.error(err); }
+    finally { setActionLoading(null); }
+  };
+
   const TABS: { key: Tab; label: string }[] = [
     { key: 'all', label: 'Alle' },
     { key: 'pending', label: `Freischaltung (${pendingCount})` },
@@ -184,6 +194,7 @@ function DriversPage() {
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Verdienst</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Freigeschaltet</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Aktion</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -216,10 +227,21 @@ function DriversPage() {
                       <span className="text-xs text-yellow-600 font-medium">Nein</span>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    {d.is_online && (
+                      <button
+                        onClick={() => forceOffline(d.user_id, d.name)}
+                        disabled={actionLoading === d.user_id}
+                        className="px-3 py-1 text-xs font-medium rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:opacity-50 transition-colors"
+                      >
+                        {actionLoading === d.user_id ? '...' : 'Offline schalten'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {drivers.length === 0 && !loading && (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-400">Keine Fahrer gefunden</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-400">Keine Fahrer gefunden</td></tr>
               )}
             </tbody>
           </table>
