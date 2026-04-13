@@ -32,9 +32,11 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col px-6 pt-12 pb-8">
       <div className="mb-8">
-        <img src="/radler_logo.svg" alt="Radler" className="h-12 w-auto mb-4" />
-        <h1 className="text-2xl font-bold text-gray-900">Konto erstellen</h1>
-        <p className="text-gray-500 text-sm">Kurier-Service in Konstanz</p>
+        <span className="inline-block bg-radler-ink-800 text-white font-heading font-bold text-lg tracking-[1.5px] px-4 py-2 rounded-[10px] mb-4">
+          RADLER
+        </span>
+        <h1 className="font-heading text-2xl font-bold text-radler-ink-800">Konto erstellen</h1>
+        <p className="font-body text-radler-ink-400 text-sm">Kurier-Service in Konstanz</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-sm w-full mx-auto">
@@ -45,7 +47,7 @@ export default function RegisterPage() {
           { name: 'password', label: 'Passwort', placeholder: 'Mindestens 6 Zeichen', type: 'password' },
         ].map((field) => (
           <div key={field.name}>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{field.label}</label>
+            <label className="block font-body text-sm font-medium text-radler-ink-700 mb-1.5">{field.label}</label>
             <input
               type={field.type}
               name={field.name}
@@ -53,7 +55,7 @@ export default function RegisterPage() {
               onChange={handleChange}
               placeholder={field.placeholder}
               required={field.name !== 'phone'}
-              className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="w-full font-body px-4 py-3.5 rounded-[12px] border border-radler-ink-200 text-sm text-radler-ink-800 focus:outline-none focus:ring-2 focus:ring-radler-green-500/30 focus:border-radler-green-500"
             />
           </div>
         ))}
@@ -67,20 +69,20 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-primary text-primary-fg font-semibold py-4 rounded-2xl mt-2 active:bg-primary-dark disabled:opacity-60 transition-colors"
+          className="w-full bg-radler-green-500 text-white font-body font-semibold py-4 rounded-[12px] mt-2 active:bg-radler-green-600 disabled:opacity-60 transition-colors"
         >
           {loading ? 'Registrieren...' : 'Registrieren'}
         </button>
 
         <p className="text-center text-xs text-gray-400 mt-3">
           Mit der Registrierung akzeptierst du unsere{' '}
-          <Link href="/agb" className="text-primary underline">AGB</Link> und{' '}
-          <Link href="/datenschutz" className="text-primary underline">Datenschutzerklärung</Link>.
+          <Link href="/agb" className="text-radler-green-500 underline">AGB</Link> und{' '}
+          <Link href="/datenschutz" className="text-radler-green-500 underline">Datenschutzerklärung</Link>.
         </p>
 
         <p className="text-center text-sm text-gray-500 mt-2">
           Bereits registriert?{' '}
-          <Link href="/login" className="text-primary font-semibold">
+          <Link href="/login" className="text-radler-green-500 font-semibold">
             Einloggen
           </Link>
         </p>

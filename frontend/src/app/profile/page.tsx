@@ -100,7 +100,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
       <div className="bg-white px-5 pt-12 pb-5 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900">Profil</h1>
+        <h1 className="font-heading text-2xl font-bold text-radler-ink-800">Profil</h1>
       </div>
 
       <div className="px-4 pt-5 space-y-4">

@@ -134,7 +134,7 @@ export default function HistoryPage() {
             </svg>
           </div>
         </Link>
-        <h1 className="text-lg font-bold text-gray-900">Auftragshistorie</h1>
+        <h1 className="font-heading text-lg font-bold text-radler-ink-800">Auftragshistorie</h1>
       </div>
 
       <div className="px-4 pt-4 space-y-3">

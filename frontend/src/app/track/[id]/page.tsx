@@ -295,7 +295,7 @@ export default function TrackPage() {
           </div>
         </Link>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Auftrag verfolgen</h1>
+          <h1 className="font-heading text-lg font-bold text-radler-ink-800">Auftrag verfolgen</h1>
           <p className="text-xs text-gray-500">{getStatusLabel(ride.status)}</p>
         </div>
       </div>

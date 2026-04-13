@@ -220,7 +220,9 @@ export default function BookPage() {
               </svg>
             </div>
           </Link>
-          <img src="/radler_logo.svg" alt="Radler" className="h-7 w-auto" />
+          <span className="inline-block bg-radler-ink-800 text-white font-heading font-bold text-xs tracking-[1.5px] px-3 py-1.5 rounded-[10px]">
+            RADLER
+          </span>
         </div>
 
         <div className="flex items-center gap-2">

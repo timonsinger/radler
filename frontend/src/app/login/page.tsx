@@ -30,32 +30,34 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white flex flex-col px-6 pt-16 pb-8">
       {/* Logo */}
       <div className="flex flex-col items-center mb-12">
-        <img src="/radler_logo.svg" alt="Radler" className="h-16 w-auto mb-2" />
-        <p className="text-gray-500 mt-1 text-sm">Kurier-Service in Konstanz</p>
+        <span className="inline-block bg-radler-ink-800 text-white font-heading font-bold text-2xl tracking-[1.5px] px-5 py-2.5 rounded-[10px] mb-3">
+          RADLER
+        </span>
+        <p className="font-body text-radler-ink-400 text-sm">Kurier-Service in Konstanz</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 max-w-sm w-full mx-auto">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">E-Mail</label>
+          <label className="block font-body text-sm font-medium text-radler-ink-700 mb-1.5">E-Mail</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="deine@email.de"
             required
-            className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full font-body px-4 py-3.5 rounded-[12px] border border-radler-ink-200 text-sm text-radler-ink-800 focus:outline-none focus:ring-2 focus:ring-radler-green-500/30 focus:border-radler-green-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Passwort</label>
+          <label className="block font-body text-sm font-medium text-radler-ink-700 mb-1.5">Passwort</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             required
-            className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full font-body px-4 py-3.5 rounded-[12px] border border-radler-ink-200 text-sm text-radler-ink-800 focus:outline-none focus:ring-2 focus:ring-radler-green-500/30 focus:border-radler-green-500"
           />
         </div>
 
@@ -68,14 +70,14 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-primary text-primary-fg font-semibold py-4 rounded-2xl mt-2 active:bg-primary-dark disabled:opacity-60 transition-colors"
+          className="w-full bg-radler-green-500 text-white font-body font-semibold py-4 rounded-[12px] mt-2 active:bg-radler-green-600 disabled:opacity-60 transition-colors"
         >
           {loading ? 'Einloggen...' : 'Einloggen'}
         </button>
 
         <p className="text-center text-sm text-gray-500 mt-2">
           Noch kein Konto?{' '}
-          <Link href="/register" className="text-primary font-semibold">
+          <Link href="/register" className="text-radler-green-500 font-semibold">
             Registrieren
           </Link>
         </p>
