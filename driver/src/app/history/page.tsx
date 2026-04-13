@@ -169,11 +169,11 @@ export default function DriverHistoryPage() {
       {selectedRide && (
         <div className="fixed inset-0 z-50 flex items-end">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedRide(null)} />
-          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-center pt-3 pb-2">
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
               <div className="w-10 h-1 bg-gray-200 rounded-full" />
             </div>
-            <div className="px-5 pb-8 space-y-4">
+            <div className="px-5 pb-4 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="flex items-center justify-between">
                 <p className="text-xl font-black text-gray-900">{formatPrice(Number(selectedRide.driver_payout || selectedRide.price * 0.85))}</p>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -241,7 +241,8 @@ export default function DriverHistoryPage() {
                   <img src={`${apiBase}${selectedRide.delivery_photo_url}`} alt="Ablieferung" className="w-full rounded-2xl object-cover max-h-48" />
                 </div>
               )}
-
+            </div>
+            <div className="px-5 pt-2 pb-8 flex-shrink-0 bg-white">
               <button
                 onClick={() => setSelectedRide(null)}
                 className="w-full bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl active:bg-gray-200"
