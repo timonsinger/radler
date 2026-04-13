@@ -100,6 +100,7 @@ function CodeInput({ onVerify, verifying, error }: {
 
 export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userName }: Props) {
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
 
   // Pickup verification state
@@ -220,6 +221,21 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
       alert('Fehler: ' + (err instanceof Error ? err.message : 'Status-Update fehlgeschlagen'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!confirm('Auftrag wirklich stornieren?')) return;
+    setCancelling(true);
+    try {
+      const data = await apiFetch(`/api/rides/${ride.id}/cancel`, { method: 'PATCH' });
+      if (data.error) throw new Error(data.error);
+      onStatusUpdate('cancelled');
+    } catch (err) {
+      console.error('Stornierung fehlgeschlagen:', err);
+      alert('Fehler: ' + (err instanceof Error ? err.message : 'Stornierung fehlgeschlagen'));
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -404,6 +420,17 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
             <p className="text-center text-xs text-gray-400 mt-2">
               {currentMethod === 'code' ? 'Bitte zuerst den Code eingeben' : 'Bitte zuerst ein Foto machen'}
             </p>
+          )}
+
+          {/* Stornieren — nur vor Abholung */}
+          {ride.status === 'accepted' && (
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="w-full mt-3 bg-white border border-red-200 text-red-500 font-semibold py-3.5 rounded-2xl active:bg-red-50 disabled:opacity-40 transition-colors"
+            >
+              {cancelling ? 'Wird storniert...' : 'Auftrag stornieren'}
+            </button>
           )}
         </div>
       </div>
