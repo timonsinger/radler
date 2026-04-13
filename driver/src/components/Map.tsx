@@ -104,12 +104,10 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   // Einmal auf aktuelle Position zentrieren wenn GPS verfügbar wird
   useEffect(() => {
     if (!googleMapRef.current || !driverLocation || initialCenterDone.current) return;
-    if (markers.length === 0) {
-      googleMapRef.current.setCenter(driverLocation);
-      googleMapRef.current.setZoom(15);
-      initialCenterDone.current = true;
-    }
-  }, [driverLocation, markers.length]);
+    googleMapRef.current.setCenter(driverLocation);
+    googleMapRef.current.setZoom(15);
+    initialCenterDone.current = true;
+  }, [driverLocation]);
 
   const centerOnDriver = useCallback(() => {
     if (!googleMapRef.current || !driverLocation) return;
