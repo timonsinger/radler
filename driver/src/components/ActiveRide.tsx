@@ -106,12 +106,12 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Karte nimmt obere Hälfte ein */}
-      <div className="flex-shrink-0" style={{ height: '50vh' }}>
+      <div className="flex-shrink-0">
         <Map
           markers={markers}
           driverLocation={driverLocation}
           showRoute
-          className="h-full rounded-none"
+          className="h-[50vh] rounded-none"
         />
       </div>
 
