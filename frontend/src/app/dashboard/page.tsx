@@ -71,9 +71,9 @@ export default function DashboardPage() {
         {/* Service Buttons */}
         <div className="grid grid-cols-2 gap-3">
           {/* 4a: Kurier-Card */}
-          <Link href="/book">
+          <Link href="/book" className="block h-full">
             <div
-              className="relative overflow-hidden rounded-[16px] p-[24px_20px] min-h-[120px] active:opacity-90 transition-opacity"
+              className="relative overflow-hidden rounded-[16px] p-[24px_20px] h-full active:opacity-90 transition-opacity"
               style={{
                 background: 'linear-gradient(135deg, #43A047 0%, #2E7D32 50%, #1B5E20 100%)',
                 transitionDuration: 'var(--duration-fast)',
@@ -92,9 +92,9 @@ export default function DashboardPage() {
           </Link>
 
           {/* 4b: Rikscha-Card */}
-          <Link href="/book/rikscha">
+          <Link href="/book/rikscha" className="block h-full">
             <div
-              className="relative overflow-hidden rounded-[16px] p-[24px_20px] min-h-[120px] active:opacity-90 transition-opacity"
+              className="relative overflow-hidden rounded-[16px] p-[24px_20px] h-full active:opacity-90 transition-opacity"
               style={{
                 background: 'linear-gradient(135deg, #1B5E20 0%, #0D3B12 50%, #092609 100%)',
                 transitionDuration: 'var(--duration-fast)',
