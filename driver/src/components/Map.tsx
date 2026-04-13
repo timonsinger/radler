@@ -29,6 +29,13 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
   useEffect(() => {
     const init = () => {
+      console.log('MAP INIT:', {
+        mapRef: !!mapRef.current,
+        googleMapRef: !!googleMapRef.current,
+        googleExists: !!window.google?.maps,
+        containerHeight: mapRef.current?.clientHeight,
+        containerWidth: mapRef.current?.clientWidth,
+      });
       if (!mapRef.current || !window.google?.maps || googleMapRef.current) return;
       googleMapRef.current = new window.google.maps.Map(mapRef.current, {
         center: driverLocation ?? KONSTANZ_CENTER,
