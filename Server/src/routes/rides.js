@@ -201,8 +201,41 @@ router.post('/', async (req, res) => {
 
     console.log(`Neuer Auftrag erstellt: ${ride.id} | ${vehicle_type} | ${pickup_address} → ${dropoff_address} | ${price.toFixed(2)}€${isScheduled ? ' (geplant: ' + scheduled_at + ')' : ''}`);
 
-    // Bei geplanten Lieferungen: keine sofortige Benachrichtigung
+    // Bei geplanten Lieferungen: sofort alle Fahrer im Radius benachrichtigen (als scheduled)
     if (isScheduled) {
+      try {
+        const io = getIO();
+        const driversResult = await db.query(
+          `SELECT d.user_id, d.latitude, d.longitude, d.max_pickup_radius_km, d.max_ride_distance_km
+           FROM drivers d
+           WHERE d.vehicle_type = $1
+             AND d.latitude IS NOT NULL
+             AND d.longitude IS NOT NULL`,
+          [vehicle_type]
+        );
+
+        const pLat = parseFloat(pickup_lat);
+        const pLng = parseFloat(pickup_lng);
+        const rideDist = parseFloat(distance_km) || 0;
+
+        let notified = 0;
+        for (const driver of driversResult.rows) {
+          const maxPickup = parseFloat(driver.max_pickup_radius_km) || 10;
+          const maxRide = parseFloat(driver.max_ride_distance_km) || 20;
+          const pickupDist = haversineDistance(
+            parseFloat(driver.latitude), parseFloat(driver.longitude),
+            pLat, pLng
+          );
+
+          if (pickupDist <= maxPickup && rideDist <= maxRide) {
+            io.to(`user:${driver.user_id}`).emit('ride:scheduled_new', { ride });
+            notified++;
+          }
+        }
+        console.log(`Geplanter Auftrag ${ride.id}: ${notified} Fahrer benachrichtigt`);
+      } catch (socketErr) {
+        console.error('Socket.io Fehler bei ride:scheduled_new:', socketErr.message);
+      }
       return res.status(201).json({ ride, price });
     }
 
@@ -458,7 +491,8 @@ router.patch('/:id/accept', async (req, res) => {
     }
     const driver = driverResult.rows[0];
 
-    if (!driver.is_online) {
+    // Geplante Aufträge dürfen auch offline angenommen werden
+    if (!driver.is_online && ride.status !== 'scheduled') {
       return res.status(400).json({ error: 'Du musst online sein um Aufträge anzunehmen' });
     }
 
@@ -501,6 +535,10 @@ router.patch('/:id/accept', async (req, res) => {
         driver: driverInfo,
       });
       io.to(`drivers:${ride.vehicle_type}`).emit('ride:removed', { rideId: id });
+      // Bei geplanten Aufträgen: alle Fahrer informieren, dass der Auftrag vergeben ist
+      if (ride.is_scheduled) {
+        io.emit('ride:scheduled_removed', { rideId: id });
+      }
     } catch (socketErr) {
       console.error('Socket.io Fehler bei ride:accepted:', socketErr.message);
     }

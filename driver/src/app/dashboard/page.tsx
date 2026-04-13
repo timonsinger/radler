@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [scheduledRides, setScheduledRides] = useState<Ride[]>([]);
   const [scheduledLoading, setScheduledLoading] = useState(false);
   const [acceptingScheduled, setAcceptingScheduled] = useState<string | null>(null);
+  const [scheduledError, setScheduledError] = useState('');
   const [approvalToast, setApprovalToast] = useState<string | null>(null);
   const [rejectionAlert, setRejectionAlert] = useState<string | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -158,6 +159,27 @@ export default function DashboardPage() {
       setTimeout(() => setApprovalToast(null), 6000);
     };
 
+    // Geplante Aufträge: neuer Auftrag sofort in die Liste
+    const handleScheduledNew = (data: { ride: Ride }) => {
+      setScheduledRides((prev) => {
+        if (prev.some((r) => r.id === data.ride.id)) return prev;
+        return [...prev, data.ride].sort((a, b) =>
+          new Date(a.scheduled_at || 0).getTime() - new Date(b.scheduled_at || 0).getTime()
+        );
+      });
+    };
+
+    // Geplanter Auftrag von anderem Fahrer angenommen → aus Liste entfernen
+    const handleScheduledRemoved = (data: { rideId: string }) => {
+      setScheduledRides((prev) => prev.filter((r) => r.id !== data.rideId));
+    };
+
+    // Erinnerung: 30 Min vor geplantem Auftrag
+    const handleScheduledReminder = (data: { ride: Ride; minutesUntil: number }) => {
+      setApprovalToast(`📅 In ${data.minutesUntil} Min: Auftrag ${data.ride.pickup_address} → ${data.ride.dropoff_address}`);
+      setTimeout(() => setApprovalToast(null), 10000);
+    };
+
     socket.on('ride:new', handleRideNew);
     socket.on('ride:removed', handleRideRemoved);
     socket.on('ride:status_update', handleStatusUpdate);
@@ -166,6 +188,9 @@ export default function DashboardPage() {
     socket.on('driver:approved', handleDriverApproved);
     socket.on('driver:rejected', handleDriverRejected);
     socket.on('driver:forced_offline', handleForcedOffline);
+    socket.on('ride:scheduled_new', handleScheduledNew);
+    socket.on('ride:scheduled_removed', handleScheduledRemoved);
+    socket.on('ride:scheduled_reminder', handleScheduledReminder);
 
     return () => {
       socket.off('ride:new', handleRideNew);
@@ -176,6 +201,9 @@ export default function DashboardPage() {
       socket.off('driver:approved', handleDriverApproved);
       socket.off('driver:rejected', handleDriverRejected);
       socket.off('driver:forced_offline', handleForcedOffline);
+      socket.off('ride:scheduled_new', handleScheduledNew);
+      socket.off('ride:scheduled_removed', handleScheduledRemoved);
+      socket.off('ride:scheduled_reminder', handleScheduledReminder);
       disconnectSocket();
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
@@ -248,14 +276,20 @@ export default function DashboardPage() {
   // Geplanten Auftrag annehmen
   async function handleAcceptScheduled(rideId: string) {
     setAcceptingScheduled(rideId);
+    setScheduledError('');
     try {
       const data = await apiFetch(`/api/rides/${rideId}/accept`, { method: 'PATCH' });
       if (data.error) throw new Error(data.error);
       // Ride in der Liste als akzeptiert markieren
       setScheduledRides((prev) =>
-        prev.map((r) => r.id === rideId ? { ...r, status: 'accepted', driver_id: user?.id } : r)
+        prev.map((r) => r.id === rideId ? { ...r, status: 'accepted' } : r)
       );
-    } catch (err) {
+      setApprovalToast('✅ Geplanter Auftrag angenommen!');
+      setTimeout(() => setApprovalToast(null), 4000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Annehmen fehlgeschlagen';
+      setScheduledError(msg);
+      setTimeout(() => setScheduledError(''), 5000);
       console.error('Geplanten Auftrag annehmen fehlgeschlagen:', err);
     } finally {
       setAcceptingScheduled(null);
@@ -479,6 +513,11 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="px-4 pb-4 space-y-2">
+              {scheduledError && (
+                <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
+                  {scheduledError}
+                </div>
+              )}
               {scheduledRides.map((ride) => {
                 const isAccepted = ride.status === 'accepted';
                 const scheduledDate = ride.scheduled_at ? new Date(ride.scheduled_at) : null;

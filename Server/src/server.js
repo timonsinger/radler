@@ -109,9 +109,12 @@ server.listen(PORT, () => {
       console.error('Fehler bei Auto-Stornierung:', err);
     }
 
-    // Geplante Lieferungen: 30 Min vor scheduled_at → status von 'scheduled' auf 'pending' setzen und Fahrer benachrichtigen
+    // Geplante Lieferungen: 30 Min vor scheduled_at
     try {
-      const scheduledResult = await db.query(`
+      const io = getIO();
+
+      // 1) Ohne Fahrer: status von 'scheduled' auf 'pending' + alle online Fahrer benachrichtigen
+      const unacceptedResult = await db.query(`
         UPDATE rides
         SET status = 'pending'
         WHERE status = 'scheduled'
@@ -120,10 +123,8 @@ server.listen(PORT, () => {
         AND scheduled_at <= NOW() + INTERVAL '30 minutes'
         RETURNING *
       `);
-      if (scheduledResult.rows.length > 0) {
-        const io = getIO();
-        for (const ride of scheduledResult.rows) {
-          // Passende Fahrer benachrichtigen
+      if (unacceptedResult.rows.length > 0) {
+        for (const ride of unacceptedResult.rows) {
           const driversResult = await db.query(
             `SELECT d.user_id, d.latitude, d.longitude, d.max_pickup_radius_km, d.max_ride_distance_km
              FROM drivers d
@@ -143,11 +144,11 @@ server.listen(PORT, () => {
             const maxPickup = parseFloat(driver.max_pickup_radius_km) || 10;
             const maxRide = parseFloat(driver.max_ride_distance_km) || 20;
             const R = 6371;
-            const dLat = (pLat - parseFloat(driver.latitude)) * Math.PI / 180;
-            const dLng = (pLng - parseFloat(driver.longitude)) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            const dLat2 = (pLat - parseFloat(driver.latitude)) * Math.PI / 180;
+            const dLng2 = (pLng - parseFloat(driver.longitude)) * Math.PI / 180;
+            const a = Math.sin(dLat2 / 2) * Math.sin(dLat2 / 2) +
               Math.cos(parseFloat(driver.latitude) * Math.PI / 180) * Math.cos(pLat * Math.PI / 180) *
-              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+              Math.sin(dLng2 / 2) * Math.sin(dLng2 / 2);
             const pickupDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
             if (pickupDist <= maxPickup && rideDist <= maxRide) {
@@ -155,8 +156,31 @@ server.listen(PORT, () => {
               notified++;
             }
           }
-          console.log(`Geplanter Auftrag ${ride.id} aktiviert (scheduled_at: ${ride.scheduled_at}): ${notified} Fahrer benachrichtigt`);
+          console.log(`Geplanter Auftrag ${ride.id} aktiviert (ohne Fahrer, scheduled_at: ${ride.scheduled_at}): ${notified} Fahrer benachrichtigt`);
         }
+      }
+
+      // 2) Mit Fahrer (accepted): 30 Min vorher Erinnerung an den Fahrer senden
+      const reminderResult = await db.query(`
+        SELECT * FROM rides
+        WHERE is_scheduled = true
+        AND status = 'accepted'
+        AND driver_id IS NOT NULL
+        AND scheduled_at <= NOW() + INTERVAL '30 minutes'
+        AND scheduled_at > NOW()
+        AND accepted_at IS NOT NULL
+      `);
+      for (const ride of reminderResult.rows) {
+        io.to(`user:${ride.driver_id}`).emit('ride:scheduled_reminder', {
+          ride,
+          minutesUntil: Math.max(1, Math.round((new Date(ride.scheduled_at).getTime() - Date.now()) / 60000)),
+        });
+        // Auch den Kunden informieren
+        io.to(`user:${ride.customer_id}`).emit('ride:status_update', {
+          rideId: ride.id,
+          status: 'accepted',
+        });
+        console.log(`Erinnerung an Fahrer ${ride.driver_id} für Auftrag ${ride.id} (in ${Math.round((new Date(ride.scheduled_at).getTime() - Date.now()) / 60000)} Min)`);
       }
     } catch (err) {
       console.error('Fehler bei Scheduled-Aktivierung:', err);
