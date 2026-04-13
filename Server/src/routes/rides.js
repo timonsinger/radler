@@ -706,17 +706,6 @@ router.post('/:id/rating', async (req, res) => {
     if (ride.status !== 'delivered') return res.status(400).json({ error: 'Nur zugestellte Aufträge können bewertet werden' });
     if (ride.rating) return res.status(400).json({ error: 'Auftrag wurde bereits bewertet' });
 
-    // 2 Minuten Wartezeit prüfen
-    if (ride.completed_at) {
-      const completedAt = new Date(ride.completed_at).getTime();
-      const now = Date.now();
-      const twoMinutes = 2 * 60 * 1000;
-      if (now - completedAt < twoMinutes) {
-        const remaining = Math.ceil((twoMinutes - (now - completedAt)) / 1000);
-        return res.status(400).json({ error: `Bitte warte noch ${remaining} Sekunden bevor du bewertest` });
-      }
-    }
-
     await db.query(
       'UPDATE rides SET rating = $1, rating_comment = $2, rated_at = NOW() WHERE id = $3',
       [rating, comment || null, id]
