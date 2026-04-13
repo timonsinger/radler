@@ -356,15 +356,14 @@ export default function DashboardPage() {
 
         {/* Online/Offline Toggle + Karte */}
         <div className="bg-white rounded-3xl shadow-sm overflow-hidden">
-          {/* Karte wenn online */}
-          {isOnline && (
-            <Map
-              driverLocation={driverLocation}
-              radiusKm={maxPickupRadius}
-              showCenterButton
-              className="h-48 rounded-none"
-            />
-          )}
+          {/* Karte immer sichtbar */}
+          <Map
+            driverLocation={driverLocation}
+            radiusKm={isOnline ? maxPickupRadius : undefined}
+            showCenterButton
+            isOnline={isOnline}
+            className="h-48 rounded-none"
+          />
           <div className="py-7 flex flex-col items-center gap-2">
             <OnlineToggle
               isOnline={isOnline}

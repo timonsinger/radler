@@ -16,11 +16,12 @@ interface Props {
   showRoute?: boolean;
   radiusKm?: number;
   showCenterButton?: boolean;
+  isOnline?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export default function Map({ markers = [], driverLocation, showRoute, radiusKm, showCenterButton, className = '', style }: Props) {
+export default function Map({ markers = [], driverLocation, showRoute, radiusKm, showCenterButton, isOnline = true, className = '', style }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -127,23 +128,27 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       return;
     }
 
+    const markerColor = isOnline ? '#2E7D32' : '#9E9E9E';
+    const markerIcon = {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      scale: 8,
+      fillColor: markerColor,
+      fillOpacity: 1,
+      strokeColor: '#fff',
+      strokeWeight: 2.5,
+    };
+
     if (!driverMarkerRef.current) {
       driverMarkerRef.current = new window.google.maps.Marker({
         position: driverLocation,
         map: googleMapRef.current,
-        icon: {
-          path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-          scale: 6,
-          fillColor: '#14532D',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2,
-        },
+        icon: markerIcon,
         title: 'Du',
         zIndex: 10,
       });
     } else {
       driverMarkerRef.current.setPosition(driverLocation);
+      driverMarkerRef.current.setIcon(markerIcon);
     }
 
     // Radius-Kreis
@@ -167,7 +172,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current?.setMap(null);
       radiusCircleRef.current = null;
     }
-  }, [driverLocation, radiusKm]);
+  }, [driverLocation, radiusKm, isOnline]);
 
   return (
     <div className="relative">
