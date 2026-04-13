@@ -26,6 +26,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
   const hasCenteredRef = useRef(false);
+  const prevMarkersKeyRef = useRef('');
   const markerDataRef = useRef<Marker[]>(markers);
   const driverLocationRef = useRef<{ lat: number; lng: number } | null | undefined>(driverLocation);
 
@@ -69,9 +70,15 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     return () => clearInterval(iv);
   }, []);
 
-  // Pickup/Dropoff markers — only when markers array changes
+  // Pickup/Dropoff markers — only when markers actually change by VALUE
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
+
+    // Skip if markers haven't changed by value (prevents re-centering on every render)
+    const key = JSON.stringify(markers);
+    if (key === prevMarkersKeyRef.current) return;
+    prevMarkersKeyRef.current = key;
+
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
     markers.forEach((marker) => {
@@ -190,8 +197,8 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   }, [driverLocation, radiusKm, centerOnDriver]);
 
   return (
-    <div className="relative w-full">
-      <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} />
+    <div className={`relative w-full ${className}`}>
+      <div ref={mapRef} className="w-full h-full" />
       {/* Center-on-me button */}
       {driverLocation && (
         <button
