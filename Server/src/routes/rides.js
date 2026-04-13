@@ -240,7 +240,7 @@ router.get('/history', async (req, res) => {
 
     if (req.user.role === 'customer') {
       countQuery = await db.query(
-        "SELECT COUNT(*) AS total FROM rides WHERE customer_id = $1 AND status IN ('delivered', 'cancelled')",
+        "SELECT COUNT(*) AS total FROM rides WHERE customer_id = $1 AND status IN ('delivered', 'cancelled', 'expired')",
         [req.user.userId]
       );
       dataQuery = await db.query(
@@ -254,7 +254,7 @@ router.get('/history', async (req, res) => {
       );
     } else if (req.user.role === 'driver') {
       countQuery = await db.query(
-        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'delivered' THEN COALESCE(driver_payout, price * 0.85) ELSE 0 END), 0) AS total_earnings FROM rides WHERE driver_id = $1 AND status IN ('delivered', 'cancelled')",
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'delivered' THEN COALESCE(driver_payout, price * 0.85) ELSE 0 END), 0) AS total_earnings FROM rides WHERE driver_id = $1 AND status IN ('delivered', 'cancelled', 'expired')",
         [req.user.userId]
       );
       dataQuery = await db.query(

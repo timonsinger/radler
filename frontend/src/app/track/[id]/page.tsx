@@ -278,6 +278,7 @@ export default function TrackPage() {
 
   const isActive = ['pending', 'accepted', 'picked_up'].includes(ride.status);
   const isDelivered = ride.status === 'delivered';
+  const isExpired = ride.status === 'expired';
   const hasExistingRating = !!(existingRating || ride.rating);
   const displayRating = existingRating?.rating || ride.rating || 0;
   const displayComment = existingRating?.comment || ride.rating_comment || '';
@@ -542,6 +543,27 @@ export default function TrackPage() {
             alt="Abholungsfoto"
             className="w-full rounded-2xl object-cover max-h-64"
           />
+        </div>
+      )}
+
+      {/* Abgelaufen */}
+      {isExpired && (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-5 shadow-sm text-center">
+          <div className="text-5xl mb-3">😔</div>
+          <p className="font-bold text-gray-900 mb-1">Kein Kurier gefunden</p>
+          <p className="text-sm text-gray-500 mb-5">
+            Leider konnte innerhalb von 10 Minuten kein verfügbarer Kurier gefunden werden.
+          </p>
+          <Link href="/book">
+            <button className="w-full bg-primary text-primary-fg font-semibold py-4 rounded-2xl active:bg-primary-dark mb-3">
+              Erneut versuchen
+            </button>
+          </Link>
+          <Link href="/dashboard">
+            <button className="w-full bg-gray-100 text-gray-600 font-semibold py-3.5 rounded-2xl active:bg-gray-200">
+              Zurück zur Übersicht
+            </button>
+          </Link>
         </div>
       )}
 

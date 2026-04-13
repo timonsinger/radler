@@ -8,7 +8,8 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
-const { setupSockets } = require('./sockets');
+const db = require('./db');
+const { setupSockets, getIO } = require('./sockets');
 const authRoutes = require('./routes/auth');
 const ridesRoutes = require('./routes/rides');
 const driversRoutes = require('./routes/drivers');
@@ -74,4 +75,29 @@ app.use((err, req, res, next) => {
 // Server starten
 server.listen(PORT, () => {
   console.log(`🚲 Radler Backend läuft auf Port ${PORT}`);
+
+  // Automatische Stornierung von abgelaufenen Aufträgen (alle 60 Sekunden)
+  setInterval(async () => {
+    try {
+      const result = await db.query(`
+        UPDATE rides
+        SET status = 'expired', completed_at = NOW()
+        WHERE status = 'pending'
+        AND created_at < NOW() - INTERVAL '10 minutes'
+        RETURNING id, customer_id
+      `);
+      if (result.rows.length > 0) {
+        const io = getIO();
+        result.rows.forEach((ride) => {
+          io.to(`user:${ride.customer_id}`).emit('ride:status_update', {
+            rideId: ride.id,
+            status: 'expired',
+          });
+          console.log(`Auftrag ${ride.id} automatisch abgelaufen (kein Fahrer gefunden)`);
+        });
+      }
+    } catch (err) {
+      console.error('Fehler bei Auto-Stornierung:', err);
+    }
+  }, 60000);
 });

@@ -105,9 +105,9 @@ export default function HistoryPage() {
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-400">{formatDate(ride.created_at)}</p>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    ride.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                    ride.status === 'delivered' ? 'bg-green-100 text-green-700' : ride.status === 'expired' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600'
                   }`}>
-                    {ride.status === 'delivered' ? 'Zugestellt' : 'Storniert'}
+                    {ride.status === 'delivered' ? 'Zugestellt' : ride.status === 'expired' ? 'Abgelaufen' : 'Storniert'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mb-0.5">

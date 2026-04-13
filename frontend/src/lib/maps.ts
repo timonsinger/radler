@@ -40,6 +40,7 @@ export function getStatusLabel(status: string): string {
     picked_up: 'Paket abgeholt',
     delivered: 'Zugestellt ✓',
     cancelled: 'Storniert',
+    expired: 'Abgelaufen – kein Kurier gefunden',
   };
   return labels[status] || status;
 }

@@ -102,7 +102,7 @@ export default function DashboardPage() {
       setPendingRide((prev) => prev?.id === data.rideId ? null : prev);
     };
     const handleStatusUpdate = (data: { rideId: string; status: string }) => {
-      if (data.status === 'cancelled') {
+      if (data.status === 'cancelled' || data.status === 'expired') {
         setActiveRide((prev) => (prev?.id === data.rideId ? null : prev));
         setPendingRide((prev) => (prev?.id === data.rideId ? null : prev));
       }

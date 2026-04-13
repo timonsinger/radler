@@ -1,4 +1,4 @@
-type Status = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled';
+type Status = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled' | 'expired';
 
 const STEPS = [
   { key: 'pending', label: 'Gebucht' },
@@ -19,6 +19,14 @@ export default function StatusBar({ status }: { status: Status }) {
     return (
       <div className="flex items-center justify-center py-3">
         <span className="text-error font-semibold">Storniert</span>
+      </div>
+    );
+  }
+
+  if (status === 'expired') {
+    return (
+      <div className="flex items-center justify-center py-3">
+        <span className="text-gray-500 font-semibold">Abgelaufen</span>
       </div>
     );
   }

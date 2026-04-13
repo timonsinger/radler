@@ -105,6 +105,11 @@ async function migrate() {
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS rated_at TIMESTAMP`);
   console.log('✅ Spalten rides.rating, rides.rating_comment, rides.rated_at erstellt/geprüft');
 
+  // Status 'expired' hinzufügen
+  await db.query(`ALTER TABLE rides DROP CONSTRAINT IF EXISTS rides_status_check`);
+  await db.query(`ALTER TABLE rides ADD CONSTRAINT rides_status_check CHECK (status IN ('pending', 'accepted', 'picked_up', 'delivered', 'cancelled', 'expired'))`);
+  console.log('✅ Status-Constraint mit expired aktualisiert');
+
   // Provision und Fahrer-Verdienst
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(6,2)`);
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_payout DECIMAL(6,2)`);
