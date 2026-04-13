@@ -229,4 +229,74 @@ router.get('/stats', requireDriver, async (req, res) => {
   }
 });
 
+// PATCH /api/drivers/profile – Fahrerprofil bearbeiten
+router.patch('/profile', requireDriver, async (req, res) => {
+  try {
+    const { vehicle_type, description, availability } = req.body;
+    const fields = [];
+    const params = [];
+
+    if (vehicle_type && ['bicycle', 'cargo_bike'].includes(vehicle_type)) {
+      params.push(vehicle_type);
+      fields.push(`vehicle_type = $${params.length}`);
+    }
+    if (description !== undefined) {
+      const desc = (description || '').substring(0, 200);
+      params.push(desc || null);
+      fields.push(`description = $${params.length}`);
+    }
+    if (availability !== undefined) {
+      const avail = (availability || '').substring(0, 100);
+      params.push(avail || null);
+      fields.push(`availability = $${params.length}`);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'Keine Änderungen angegeben' });
+    }
+
+    params.push(req.user.userId);
+    const result = await db.query(
+      `UPDATE drivers SET ${fields.join(', ')} WHERE user_id = $${params.length} RETURNING vehicle_type, description, availability`,
+      params
+    );
+
+    res.json({ driver: result.rows[0] });
+  } catch (err) {
+    console.error('Fehler bei PATCH /drivers/profile:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// GET /api/drivers/profile – Eigenes Fahrerprofil laden
+router.get('/profile', requireDriver, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT vehicle_type, rating, description, availability FROM drivers WHERE user_id = $1',
+      [req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Fahrerprofil nicht gefunden' });
+    }
+
+    // Gesamt-Statistiken
+    const statsResult = await db.query(
+      `SELECT COUNT(*) AS total_rides, COALESCE(SUM(price), 0) AS total_earnings
+       FROM rides WHERE driver_id = $1 AND status = 'delivered'`,
+      [req.user.userId]
+    );
+
+    res.json({
+      driver: result.rows[0],
+      stats: {
+        total_rides: parseInt(statsResult.rows[0].total_rides, 10),
+        total_earnings: parseFloat(statsResult.rows[0].total_earnings),
+      },
+    });
+  } catch (err) {
+    console.error('Fehler bei GET /drivers/profile:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 module.exports = router;

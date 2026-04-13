@@ -81,6 +81,14 @@ async function migrate() {
   `);
   console.log('✅ Tabelle invite_tokens erstellt/geprüft');
 
+  // Neue Spalten für Profil-Feature
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT`);
+  console.log('✅ Spalte users.profile_image_url erstellt/geprüft');
+
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS description TEXT`);
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS availability VARCHAR(100)`);
+  console.log('✅ Spalten drivers.description, drivers.availability erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }
