@@ -268,7 +268,7 @@ router.get('/history', async (req, res) => {
         [req.user.userId]
       );
       dataQuery = await db.query(
-        `SELECT r.*, u.name AS driver_name
+        `SELECT r.*, u.name AS driver_name, u.profile_image_url AS driver_profile_image_url
          FROM rides r
          LEFT JOIN users u ON u.id = r.driver_id
          WHERE r.customer_id = $1 AND r.status IN ('delivered', 'cancelled')

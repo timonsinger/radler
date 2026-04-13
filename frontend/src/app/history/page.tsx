@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getStoredUser } from '@/lib/auth';
@@ -18,11 +18,32 @@ interface HistoryRide {
   price: number;
   vehicle_type: string;
   rating?: number;
+  driver_id?: string;
   driver_name?: string;
+  driver_profile_image_url?: string;
   delivery_photo_url?: string;
   pickup_photo_url?: string;
   created_at: string;
   completed_at?: string;
+}
+
+interface DriverProfile {
+  id: string;
+  name: string;
+  profile_image_url?: string;
+  member_since: string;
+  vehicle_type?: string;
+  rating?: number;
+  description?: string;
+  availability?: string;
+  completed_rides?: number;
+}
+
+interface Review {
+  rating: number;
+  comment?: string;
+  date: string;
+  customer_name: string;
 }
 
 function truncate(s: string, len: number) {
@@ -33,6 +54,10 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatMemberSince(d: string) {
+  return new Date(d).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+}
+
 export default function HistoryPage() {
   const router = useRouter();
   const [rides, setRides] = useState<HistoryRide[]>([]);
@@ -40,6 +65,13 @@ export default function HistoryPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedRide, setSelectedRide] = useState<HistoryRide | null>(null);
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
+  const [driverReviews, setDriverReviews] = useState<Review[]>([]);
+  const [driverReviewCount, setDriverReviewCount] = useState(0);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [reviewsTotalPages, setReviewsTotalPages] = useState(1);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -57,6 +89,38 @@ export default function HistoryPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [page]);
+
+  const loadReviews = useCallback((driverId: string, pg: number) => {
+    setReviewsLoading(true);
+    apiFetch(`/api/drivers/${driverId}/reviews?page=${pg}&limit=10`)
+      .then((data) => {
+        if (pg === 1) setDriverReviews(data.reviews || []);
+        else setDriverReviews((prev) => [...prev, ...(data.reviews || [])]);
+        setReviewsTotalPages(data.totalPages || 1);
+      })
+      .catch(() => {})
+      .finally(() => setReviewsLoading(false));
+  }, []);
+
+  const openDriverProfile = useCallback((driverId: string) => {
+    setDriverProfile(null);
+    setDriverReviews([]);
+    setReviewsPage(1);
+    setDriverReviewCount(0);
+    setShowDriverModal(true);
+
+    apiFetch(`/api/auth/profile/${driverId}`)
+      .then((data) => {
+        if (data.profile) setDriverProfile(data.profile);
+      })
+      .catch(() => {});
+    apiFetch(`/api/drivers/${driverId}/reviews?limit=1`)
+      .then((data) => {
+        setDriverReviewCount(data.total_reviews || 0);
+      })
+      .catch(() => {});
+    loadReviews(driverId, 1);
+  }, [loadReviews]);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -150,13 +214,13 @@ export default function HistoryPage() {
 
       {/* Detail Modal */}
       {selectedRide && (
-        <div className="fixed inset-0 z-50 flex items-end">
+        <div className="fixed inset-0 z-[60] flex items-end">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedRide(null)} />
-          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-center pt-3 pb-2">
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
               <div className="w-10 h-1 bg-gray-200 rounded-full" />
             </div>
-            <div className="px-5 pb-8 space-y-4">
+            <div className="px-5 pb-4 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div className="flex items-center justify-between">
                 <p className="text-xl font-black text-gray-900">{formatPrice(Number(selectedRide.price))}</p>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -167,6 +231,33 @@ export default function HistoryPage() {
               </div>
 
               <p className="text-xs text-gray-400">{formatDate(selectedRide.created_at)}</p>
+
+              {/* Kurier-Profil klickbar */}
+              {selectedRide.driver_id && selectedRide.driver_name && (
+                <button
+                  onClick={() => openDriverProfile(selectedRide.driver_id!)}
+                  className="w-full flex items-center gap-3 bg-gray-50 rounded-2xl p-3 active:bg-gray-100 transition-colors"
+                >
+                  {selectedRide.driver_profile_image_url ? (
+                    <img
+                      src={`${apiBase}${selectedRide.driver_profile_image_url}`}
+                      alt={selectedRide.driver_name}
+                      className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-sm font-bold">{selectedRide.driver_name.charAt(0).toUpperCase()}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-bold text-gray-900">{selectedRide.driver_name}</p>
+                    <p className="text-xs text-gray-400">Kurier · Profil ansehen</p>
+                  </div>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
 
               <div className="space-y-2">
                 <div className="flex items-start gap-3">
@@ -185,18 +276,14 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Distanz</p>
                   <p className="text-sm font-bold">{selectedRide.distance_km ? `${Number(selectedRide.distance_km).toFixed(1)} km` : '–'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Fahrzeug</p>
-                  <p className="text-sm font-bold">{selectedRide.vehicle_type === 'bicycle' ? '🚲' : '🚛'}</p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-gray-400">Kurier</p>
-                  <p className="text-sm font-bold truncate">{selectedRide.driver_name || '–'}</p>
+                  <p className="text-sm font-bold">{selectedRide.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</p>
                 </div>
               </div>
 
@@ -224,13 +311,154 @@ export default function HistoryPage() {
                   <img src={`${apiBase}${selectedRide.delivery_photo_url}`} alt="Ablieferung" className="w-full rounded-2xl object-cover max-h-48" />
                 </div>
               )}
-
+            </div>
+            <div className="px-5 pt-2 pb-8 flex-shrink-0 bg-white">
               <button
                 onClick={() => setSelectedRide(null)}
                 className="w-full bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl active:bg-gray-200"
               >
                 Schließen
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fahrer-Profil Modal */}
+      {showDriverModal && (
+        <div className="fixed inset-0 z-[70] flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowDriverModal(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[90vh] flex flex-col shadow-2xl">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowDriverModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center z-10"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
+              <div className="w-10 h-1 bg-gray-200 rounded-full" />
+            </div>
+
+            <div className="px-5 pb-8 space-y-5 overflow-y-auto flex-1 min-h-0">
+              {!driverProfile ? (
+                <div className="py-8"><LoadingSpinner /></div>
+              ) : (
+                <>
+                  {/* Avatar + Name */}
+                  <div className="flex flex-col items-center text-center pt-2">
+                    {driverProfile.profile_image_url ? (
+                      <img
+                        src={`${apiBase}${driverProfile.profile_image_url}`}
+                        alt={driverProfile.name}
+                        className="w-20 h-20 rounded-full object-cover mb-3"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mb-3">
+                        <span className="text-white text-3xl font-bold">{driverProfile.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                    )}
+                    <h2 className="text-xl font-bold text-gray-900">{driverProfile.name}</h2>
+                    <p className="text-xs text-gray-400 mt-1">Dabei seit {formatMemberSince(driverProfile.member_since)}</p>
+
+                    {driverProfile.rating && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <div className="flex">
+                          {[1,2,3,4,5].map((s) => (
+                            <span key={s} className={`text-lg ${s <= Math.round(Number(driverProfile.rating)) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                          ))}
+                        </div>
+                        <span className="text-sm font-bold text-gray-700">{Number(driverProfile.rating).toFixed(1)}</span>
+                        {driverReviewCount > 0 && (
+                          <span className="text-xs text-gray-400">({driverReviewCount} Bewertungen)</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-gray-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400">Fahrzeug</p>
+                      <p className="text-sm font-bold mt-0.5">{driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400">Fahrten</p>
+                      <p className="text-sm font-bold mt-0.5">{driverProfile.completed_rides ?? 0}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400">Bewertung</p>
+                      <p className="text-sm font-bold mt-0.5">{driverProfile.rating ? Number(driverProfile.rating).toFixed(1) : '–'}</p>
+                    </div>
+                  </div>
+
+                  {/* Beschreibung */}
+                  {driverProfile.description && (
+                    <div>
+                      <p className="text-xs text-gray-400 font-semibold uppercase mb-1">Über mich</p>
+                      <p className="text-sm text-gray-700">{driverProfile.description}</p>
+                    </div>
+                  )}
+
+                  {/* Verfügbarkeit */}
+                  {driverProfile.availability && (
+                    <div>
+                      <p className="text-xs text-gray-400 font-semibold uppercase mb-1">Verfügbarkeit</p>
+                      <p className="text-sm text-gray-700">{driverProfile.availability}</p>
+                    </div>
+                  )}
+
+                  {/* Bewertungen */}
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold uppercase mb-3">Bewertungen</p>
+                    {driverReviews.length === 0 && !reviewsLoading && (
+                      <p className="text-sm text-gray-400 text-center py-4">Noch keine Bewertungen</p>
+                    )}
+                    <div className="space-y-3">
+                      {driverReviews.map((review, i) => (
+                        <div key={i} className="bg-gray-50 rounded-2xl p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <div className="flex">
+                                {[1,2,3,4,5].map((s) => (
+                                  <span key={s} className={`text-sm ${s <= review.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                                ))}
+                              </div>
+                              <span className="text-xs font-semibold text-gray-600">{review.customer_name}</span>
+                            </div>
+                            {review.date && (
+                              <span className="text-xs text-gray-300">{formatDate(review.date)}</span>
+                            )}
+                          </div>
+                          {review.comment && (
+                            <p className="text-sm text-gray-600 mt-1">{review.comment}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {reviewsPage < reviewsTotalPages && selectedRide?.driver_id && (
+                      <button
+                        onClick={() => {
+                          const next = reviewsPage + 1;
+                          setReviewsPage(next);
+                          loadReviews(selectedRide.driver_id!, next);
+                        }}
+                        disabled={reviewsLoading}
+                        className="w-full text-primary font-semibold text-sm py-3 mt-3 active:text-primary/70 disabled:opacity-50"
+                      >
+                        {reviewsLoading ? 'Laden...' : 'Mehr Bewertungen laden'}
+                      </button>
+                    )}
+                    {reviewsLoading && driverReviews.length === 0 && (
+                      <div className="py-4"><LoadingSpinner /></div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
