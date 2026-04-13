@@ -197,13 +197,13 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   }, [driverLocation, radiusKm, centerOnDriver]);
 
   return (
-    <div className={`relative w-full ${className}`}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      {/* Center-on-me button */}
+    <div ref={mapRef} className={`relative w-full rounded-2xl overflow-hidden ${className}`}>
+      {/* Center-on-me button — rendered inside mapRef, Google Maps won't remove it */}
       {driverLocation && (
         <button
           onClick={centerOnDriver}
-          className="absolute bottom-3 right-3 w-11 h-11 bg-white rounded-full shadow-lg flex items-center justify-center active:bg-gray-100 z-10"
+          className="absolute bottom-3 right-3 w-11 h-11 bg-white rounded-full shadow-lg flex items-center justify-center active:bg-gray-100"
+          style={{ zIndex: 1000 }}
           title="Auf meine Position zentrieren"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14532D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
