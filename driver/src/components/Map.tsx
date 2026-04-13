@@ -26,6 +26,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
+  const prevMarkersKeyRef = useRef('');
 
   useEffect(() => {
     const init = () => {
@@ -46,6 +47,12 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   // Marker setzen
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
+
+    // Nur neu zeichnen wenn sich Marker tatsächlich geändert haben
+    const key = JSON.stringify(markers);
+    if (key === prevMarkersKeyRef.current) return;
+    prevMarkersKeyRef.current = key;
+
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
     markers.forEach((marker) => {
@@ -144,9 +151,6 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       radiusCircleRef.current?.setMap(null);
       radiusCircleRef.current = null;
     }
-
-    // Karte auf Position zentrieren
-    googleMapRef.current.panTo(driverLocation);
   }, [driverLocation, radiusKm]);
 
   return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} style={style} />;
