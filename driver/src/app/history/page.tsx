@@ -61,7 +61,8 @@ export default function DriverHistoryPage() {
       .finally(() => setLoading(false));
   }, [page]);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  // Use relative URLs - nginx proxies /uploads/ to backend
+  const apiBase = '';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">

@@ -122,7 +122,8 @@ export default function DriverProfilePage() {
 
   if (!user) return null;
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  // Use relative URLs - nginx proxies /uploads/ to backend
+  const apiBase = '';
   const imageUrl = photoPreview || (user.profile_image_url ? `${apiBase}${user.profile_image_url}?t=${Date.now()}` : null);
   const rating = user.driver?.rating ? Number(user.driver.rating) : null;
 

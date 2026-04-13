@@ -22,7 +22,10 @@ const corsOrigins = process.env.CORS_ORIGINS
   : ['http://localhost:3000'];
 
 // Middleware: Sicherheit und Parsing
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
+}));
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 
