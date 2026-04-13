@@ -72,6 +72,11 @@ export default function RegisterPage() {
           {loading ? 'Registrieren...' : 'Registrieren'}
         </button>
 
+        <p className="text-center text-xs text-gray-400 mt-3">
+          Mit der Registrierung akzeptierst du unsere{' '}
+          <Link href="/datenschutz" className="text-primary underline">Datenschutzerklärung</Link>.
+        </p>
+
         <p className="text-center text-sm text-gray-500 mt-2">
           Bereits registriert?{' '}
           <Link href="/login" className="text-primary font-semibold">
@@ -79,6 +84,11 @@ export default function RegisterPage() {
           </Link>
         </p>
       </form>
+
+      <div className="flex justify-center gap-4 mt-8">
+        <Link href="/impressum" className="text-xs text-gray-400 hover:text-gray-600">Impressum</Link>
+        <Link href="/datenschutz" className="text-xs text-gray-400 hover:text-gray-600">Datenschutz</Link>
+      </div>
     </div>
   );
 }

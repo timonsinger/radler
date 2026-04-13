@@ -86,6 +86,11 @@ export default function LoginPage() {
             Registrieren
           </Link>
         </p>
+
+        <div className="flex justify-center gap-4 mt-6">
+          <Link href="/impressum" className="text-xs text-gray-400 hover:text-gray-600">Impressum</Link>
+          <Link href="/datenschutz" className="text-xs text-gray-400 hover:text-gray-600">Datenschutz</Link>
+        </div>
       </div>
     </div>
   );
