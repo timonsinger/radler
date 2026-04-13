@@ -105,6 +105,15 @@ async function migrate() {
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS rated_at TIMESTAMP`);
   console.log('✅ Spalten rides.rating, rides.rating_comment, rides.rated_at erstellt/geprüft');
 
+  // Provision und Fahrer-Verdienst
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(6,2)`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_payout DECIMAL(6,2)`);
+  console.log('✅ Spalten rides.platform_fee, rides.driver_payout erstellt/geprüft');
+
+  // Fahrer-Onboarding
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false`);
+  console.log('✅ Spalte drivers.onboarding_completed erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

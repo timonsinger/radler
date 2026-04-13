@@ -9,12 +9,16 @@ export const KONSTANZ_BOUNDS = {
   west: 8.90,
 };
 
+// Preiskonstanten
+export const PRICING = {
+  bicycle: { base: 4.00, perKm: 1.50, min: 5.50 },
+  cargo_bike: { base: 6.00, perKm: 2.00, min: 8.00 },
+};
+
 // Preis berechnen (gleiche Logik wie Backend)
 export function calculatePrice(vehicleType: 'bicycle' | 'cargo_bike', distanceKm: number): number {
-  if (vehicleType === 'bicycle') {
-    return Math.max(3.0, distanceKm * 1.5);
-  }
-  return Math.max(4.0, distanceKm * 2.0);
+  const p = PRICING[vehicleType];
+  return Math.max(p.min, p.base + distanceKm * p.perKm);
 }
 
 // Preis formatieren

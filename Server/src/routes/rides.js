@@ -36,15 +36,15 @@ const upload = multer({
   },
 });
 
-// Preisberechnung
+// Preisberechnung: Grundgebühr + km-Preis, mit Mindestpreis
 function calculatePrice(vehicleType, distanceKm) {
   const distance = parseFloat(distanceKm) || 0;
   if (vehicleType === 'bicycle') {
-    return Math.max(3.00, distance * 1.50);
+    return Math.max(5.50, 4.00 + distance * 1.50);
   } else if (vehicleType === 'cargo_bike') {
-    return Math.max(4.00, distance * 2.00);
+    return Math.max(8.00, 6.00 + distance * 2.00);
   }
-  return 3.00;
+  return 5.50;
 }
 
 // Haversine-Formel: Entfernung zwischen zwei GPS-Koordinaten in km
@@ -109,14 +109,17 @@ router.post('/', async (req, res) => {
     }
 
     const price = calculatePrice(vehicle_type, distance_km);
+    const platformFee = parseFloat((price * 0.15).toFixed(2));
+    const driverPayout = parseFloat((price * 0.85).toFixed(2));
 
     const rideResult = await db.query(
       `INSERT INTO rides
         (customer_id, vehicle_type, pickup_address, pickup_lat, pickup_lng,
          dropoff_address, dropoff_lat, dropoff_lng, distance_km, price,
+         platform_fee, driver_payout,
          invite_email, invite_role,
          pickup_method, pickup_code, delivery_method, delivery_code)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [
         req.user.userId,
@@ -129,6 +132,8 @@ router.post('/', async (req, res) => {
         dropoff_lng,
         distance_km || null,
         price.toFixed(2),
+        platformFee,
+        driverPayout,
         invite_email || null,
         invite_role || null,
         pMethod,
@@ -249,7 +254,7 @@ router.get('/history', async (req, res) => {
       );
     } else if (req.user.role === 'driver') {
       countQuery = await db.query(
-        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'delivered' THEN price ELSE 0 END), 0) AS total_earnings FROM rides WHERE driver_id = $1 AND status IN ('delivered', 'cancelled')",
+        "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'delivered' THEN COALESCE(driver_payout, price * 0.85) ELSE 0 END), 0) AS total_earnings FROM rides WHERE driver_id = $1 AND status IN ('delivered', 'cancelled')",
         [req.user.userId]
       );
       dataQuery = await db.query(

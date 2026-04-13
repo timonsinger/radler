@@ -15,6 +15,7 @@ interface HistoryRide {
   dropoff_address: string;
   distance_km: number;
   price: number;
+  driver_payout?: number;
   vehicle_type: string;
   rating?: number;
   customer_name?: string;
@@ -123,7 +124,7 @@ export default function DriverHistoryPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-400">{formatDate(ride.created_at)}</p>
-                  <span className="text-sm font-bold text-primary">{formatPrice(Number(ride.price))}</span>
+                  <span className="text-sm font-bold text-primary">{formatPrice(Number(ride.driver_payout || ride.price * 0.85))}</span>
                 </div>
                 <div className="flex items-center gap-2 mb-0.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
@@ -174,7 +175,7 @@ export default function DriverHistoryPage() {
             </div>
             <div className="px-5 pb-8 space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-xl font-black text-gray-900">{formatPrice(Number(selectedRide.price))}</p>
+                <p className="text-xl font-black text-gray-900">{formatPrice(Number(selectedRide.driver_payout || selectedRide.price * 0.85))}</p>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                   selectedRide.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
                 }`}>

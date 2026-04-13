@@ -554,10 +554,6 @@ export default function BookPage() {
                 <span className="text-lg">{vehicleType === 'bicycle' ? '🚲' : '🚛'}</span>
                 <p className="text-sm text-gray-600">{vehicleType === 'bicycle' ? 'Fahrradkurier' : 'Lastenrad'}</p>
               </div>
-              <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
-                <span className="text-lg">💵</span>
-                <p className="text-sm text-gray-600">Bezahlung: Bar bei Lieferung</p>
-              </div>
             </div>
 
             {error && (

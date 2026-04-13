@@ -203,7 +203,7 @@ router.patch('/location', requireDriver, async (req, res) => {
 router.get('/stats', requireDriver, async (req, res) => {
   try {
     const ridesResult = await db.query(
-      `SELECT COUNT(*) AS completed_rides, COALESCE(SUM(price), 0) AS earnings_today
+      `SELECT COUNT(*) AS completed_rides, COALESCE(SUM(COALESCE(driver_payout, price * 0.85)), 0) AS earnings_today
        FROM rides
        WHERE driver_id = $1
          AND status = 'delivered'
@@ -287,7 +287,7 @@ router.get('/profile', requireDriver, async (req, res) => {
 
     // Gesamt-Statistiken
     const statsResult = await db.query(
-      `SELECT COUNT(*) AS total_rides, COALESCE(SUM(price), 0) AS total_earnings
+      `SELECT COUNT(*) AS total_rides, COALESCE(SUM(COALESCE(driver_payout, price * 0.85)), 0) AS total_earnings
        FROM rides WHERE driver_id = $1 AND status = 'delivered'`,
       [req.user.userId]
     );
@@ -371,6 +371,20 @@ router.get('/:id/reviews', async (req, res) => {
     });
   } catch (err) {
     console.error('Fehler bei GET /drivers/:id/reviews:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// PATCH /api/drivers/onboarding-complete – Onboarding abschließen
+router.patch('/onboarding-complete', requireDriver, async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE drivers SET onboarding_completed = true WHERE user_id = $1',
+      [req.user.userId]
+    );
+    res.json({ onboarding_completed: true });
+  } catch (err) {
+    console.error('Fehler bei PATCH /drivers/onboarding-complete:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });

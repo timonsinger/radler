@@ -74,6 +74,7 @@ export default function RegisterPage() {
 
         <p className="text-center text-xs text-gray-400 mt-3">
           Mit der Registrierung akzeptierst du unsere{' '}
+          <Link href="/agb" className="text-primary underline">AGB</Link> und{' '}
           <Link href="/datenschutz" className="text-primary underline">Datenschutzerklärung</Link>.
         </p>
 
@@ -87,6 +88,7 @@ export default function RegisterPage() {
 
       <div className="flex justify-center gap-4 mt-8">
         <Link href="/impressum" className="text-xs text-gray-400 hover:text-gray-600">Impressum</Link>
+        <Link href="/agb" className="text-xs text-gray-400 hover:text-gray-600">AGB</Link>
         <Link href="/datenschutz" className="text-xs text-gray-400 hover:text-gray-600">Datenschutz</Link>
       </div>
     </div>

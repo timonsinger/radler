@@ -25,6 +25,7 @@ interface Ride {
   dropoff_lng: number;
   distance_km: number;
   price: number;
+  driver_payout?: number;
   vehicle_type: string;
   customer_name?: string;
   pickup_method?: string;
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
   const [maxRideDistance, setMaxRideDistance] = useState(20);
   const [ratingToast, setRatingToast] = useState<{ rating: number; comment?: string } | null>(null);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isOnlineRef = useRef(false);
 
@@ -72,6 +74,7 @@ export default function DashboardPage() {
     apiFetch('/api/auth/me')
       .then((data) => {
         if (data.driver?.is_online) setIsOnline(true);
+        if (data.driver && !data.driver.onboarding_completed) setShowOnboardingBanner(true);
         return Promise.all([
           apiFetch('/api/rides'),
           apiFetch('/api/drivers/settings'),
@@ -238,7 +241,7 @@ export default function DashboardPage() {
         <div className="text-8xl mb-6">✅</div>
         <h2 className="text-3xl font-black text-white mb-2">Zugestellt!</h2>
         {activeRide && (
-          <p className="text-2xl font-bold text-white/90 mb-1">+{Number(activeRide.price).toFixed(2).replace('.', ',')} €</p>
+          <p className="text-2xl font-bold text-white/90 mb-1">+{Number(activeRide.driver_payout || activeRide.price * 0.85).toFixed(2).replace('.', ',')} €</p>
         )}
         <p className="text-white/70">Auftrag erfolgreich abgeschlossen.</p>
         <p className="text-white/50 text-sm mt-2">Gleich zurück...</p>
@@ -290,6 +293,23 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex-1 flex flex-col px-4 pt-6 pb-8 gap-5">
+        {/* Onboarding Banner */}
+        {showOnboardingBanner && (
+          <a
+            href="/onboarding"
+            className="bg-yellow-50 border border-yellow-200 rounded-2xl px-4 py-3 flex items-center gap-3 active:bg-yellow-100 transition-colors"
+          >
+            <span className="text-xl">📋</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-yellow-800">Fahrer-Anleitung lesen</p>
+              <p className="text-xs text-yellow-600">Gewerbe, Versicherung & mehr – bevor du loslegst</p>
+            </div>
+            <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
+        )}
+
         {/* Online/Offline Toggle + Karte */}
         <div className="bg-white rounded-3xl shadow-sm overflow-hidden">
           {/* Karte wenn online */}

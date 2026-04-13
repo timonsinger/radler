@@ -211,6 +211,7 @@ export default function ProfilePage() {
         {/* Rechtliches */}
         <div className="flex justify-center gap-4 pt-2 pb-4">
           <Link href="/impressum" className="text-xs text-gray-400 hover:text-gray-600">Impressum</Link>
+          <Link href="/agb" className="text-xs text-gray-400 hover:text-gray-600">AGB</Link>
           <Link href="/datenschutz" className="text-xs text-gray-400 hover:text-gray-600">Datenschutz</Link>
         </div>
       </div>

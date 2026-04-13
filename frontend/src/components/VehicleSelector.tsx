@@ -11,16 +11,16 @@ const VEHICLES = [
     emoji: '🚲',
     name: 'Fahrradkurier',
     description: 'Rucksack-Größe',
-    basePrice: 'ab 3,00 €',
-    perKm: '1,50 €/km',
+    basePrice: 'ab 5,50 €',
+    perKm: '4€ Grundgebühr + 1,50€/km',
   },
   {
     type: 'cargo_bike' as VehicleType,
     emoji: '🚛',
     name: 'Lastenrad',
     description: 'Größere Pakete',
-    basePrice: 'ab 4,00 €',
-    perKm: '2,00 €/km',
+    basePrice: 'ab 8,00 €',
+    perKm: '6€ Grundgebühr + 2,00€/km',
   },
 ];
 

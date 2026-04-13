@@ -13,6 +13,7 @@ interface Ride {
   dropoff_lng: number;
   distance_km: number;
   price: number;
+  driver_payout?: number;
   vehicle_type: string;
 }
 
@@ -58,7 +59,8 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
         <div className="px-5 pt-2 pb-3 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-warning uppercase tracking-wider">⚡ Neuer Auftrag</p>
-            <p className="text-xl font-black text-gray-900">{formatPrice(Number(ride.price))}</p>
+            <p className="text-xl font-black text-gray-900">{formatPrice(Number(ride.driver_payout || ride.price * 0.85))}</p>
+            <p className="text-xs text-gray-400">Dein Verdienst</p>
           </div>
           <div className="text-right">
             <p className={`text-2xl font-black ${secondsLeft <= 10 ? 'text-error' : 'text-gray-700'}`}>
@@ -100,7 +102,7 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'Distanz', value: ride.distance_km ? `${Number(ride.distance_km).toFixed(1)} km` : '–' },
-              { label: 'Verdienst', value: formatPrice(Number(ride.price)) },
+              { label: 'Dein Verdienst', value: formatPrice(Number(ride.driver_payout || ride.price * 0.85)) },
               { label: 'Fahrzeug', value: ride.vehicle_type === 'bicycle' ? '🚲 Rad' : '🚛 Lastenrad' },
             ].map((item) => (
               <div key={item.label} className="bg-gray-50 rounded-xl p-2.5 text-center">
