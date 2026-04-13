@@ -237,6 +237,7 @@ export default function DashboardPage() {
           ride={activeRide}
           driverLocation={driverLocation}
           onStatusUpdate={handleStatusUpdate}
+          userName={user.name}
         />
         {pendingRide && (
           <RideRequest

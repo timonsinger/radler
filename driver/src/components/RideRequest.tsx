@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import Map from './Map';
 import { formatPrice } from '@/lib/maps';
 
 interface Ride {
@@ -74,18 +73,6 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
           <div
             className={`h-full ${timerColor} rounded-full transition-all duration-1000`}
             style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        {/* Mini Karte */}
-        <div className="px-5 mb-4">
-          <Map
-            markers={[
-              { lat: Number(ride.pickup_lat), lng: Number(ride.pickup_lng), color: '#22C55E', label: 'A' },
-              { lat: Number(ride.dropoff_lat), lng: Number(ride.dropoff_lng), color: '#EF4444', label: 'B' },
-            ]}
-            showRoute
-            className="h-44"
           />
         </div>
 

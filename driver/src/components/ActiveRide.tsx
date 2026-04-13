@@ -23,6 +23,7 @@ interface Props {
   ride: Ride;
   driverLocation: { lat: number; lng: number } | null;
   onStatusUpdate: (newStatus: string) => void;
+  userName?: string;
 }
 
 const ACTION = {
@@ -30,11 +31,12 @@ const ACTION = {
   picked_up: { label: 'ZUGESTELLT', nextStatus: 'delivered', color: 'bg-primary' },
 };
 
-export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Props) {
+export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userName }: Props) {
   const [loading, setLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const action = ACTION[ride.status as keyof typeof ACTION];
 
@@ -105,13 +107,23 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate }: Pro
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <div className="bg-primary px-5 pt-12 pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white/60 text-sm">Fahrer-App</p>
+            <h1 className="text-xl font-black text-white">{userName || 'Fahrer'}</h1>
+          </div>
+        </div>
+      </div>
+
       {/* Karte */}
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4" onClick={() => setMapExpanded(!mapExpanded)}>
         <Map
           markers={markers}
           driverLocation={driverLocation}
           showRoute
-          style={{ width: '100%', height: '35vh' }}
+          style={{ width: '100%', height: mapExpanded ? '65vh' : '35vh', transition: 'height 0.3s ease' }}
           className="rounded-2xl"
         />
       </div>
