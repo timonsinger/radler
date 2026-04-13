@@ -102,6 +102,7 @@ router.post('/', async (req, res) => {
       pickup_code,
       delivery_method,
       delivery_code,
+      scheduled_at,
     } = req.body;
 
     if (!pickup_address || !pickup_lat || !pickup_lng) {
@@ -136,14 +137,31 @@ router.post('/', async (req, res) => {
     const platformFee = parseFloat((price * commission).toFixed(2));
     const driverPayout = parseFloat((price * (1 - commission)).toFixed(2));
 
+    // Geplante Lieferung: Status = 'scheduled', sonst 'pending'
+    const isScheduled = !!scheduled_at;
+    const rideStatus = isScheduled ? 'scheduled' : 'pending';
+
+    // Validierung: scheduled_at muss in der Zukunft liegen (mind. 30 Min)
+    if (isScheduled) {
+      const scheduledDate = new Date(scheduled_at);
+      const minTime = new Date(Date.now() + 30 * 60 * 1000);
+      if (isNaN(scheduledDate.getTime())) {
+        return res.status(400).json({ error: 'Ungültiges Datum für geplante Lieferung' });
+      }
+      if (scheduledDate < minTime) {
+        return res.status(400).json({ error: 'Geplante Lieferung muss mindestens 30 Minuten in der Zukunft liegen' });
+      }
+    }
+
     const rideResult = await db.query(
       `INSERT INTO rides
         (customer_id, vehicle_type, pickup_address, pickup_lat, pickup_lng,
          dropoff_address, dropoff_lat, dropoff_lng, distance_km, price,
          platform_fee, driver_payout,
          invite_email, invite_role,
-         pickup_method, pickup_code, delivery_method, delivery_code)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         pickup_method, pickup_code, delivery_method, delivery_code,
+         scheduled_at, is_scheduled, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        RETURNING *`,
       [
         req.user.userId,
@@ -164,6 +182,9 @@ router.post('/', async (req, res) => {
         pMethod === 'code' ? pickup_code : null,
         dMethod,
         dMethod === 'code' ? delivery_code : null,
+        isScheduled ? new Date(scheduled_at) : null,
+        isScheduled,
+        rideStatus,
       ]
     );
     const ride = rideResult.rows[0];
@@ -178,7 +199,12 @@ router.post('/', async (req, res) => {
       console.log(`Einladungs-Token erstellt für ${invite_email} (Rolle: ${invite_role}), Ride: ${ride.id}`);
     }
 
-    console.log(`Neuer Auftrag erstellt: ${ride.id} | ${vehicle_type} | ${pickup_address} → ${dropoff_address} | ${price.toFixed(2)}€`);
+    console.log(`Neuer Auftrag erstellt: ${ride.id} | ${vehicle_type} | ${pickup_address} → ${dropoff_address} | ${price.toFixed(2)}€${isScheduled ? ' (geplant: ' + scheduled_at + ')' : ''}`);
+
+    // Bei geplanten Lieferungen: keine sofortige Benachrichtigung
+    if (isScheduled) {
+      return res.status(201).json({ ride, price });
+    }
 
     // Nur passende Fahrer benachrichtigen (Radius-Filterung)
     try {
@@ -231,7 +257,7 @@ router.get('/', async (req, res) => {
     if (req.user.role === 'customer') {
       result = await db.query(
         `SELECT * FROM rides WHERE customer_id = $1
-         ORDER BY created_at DESC LIMIT 50`,
+         ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT 50`,
         [req.user.userId]
       );
     } else if (req.user.role === 'driver') {
@@ -309,6 +335,64 @@ router.get('/history', async (req, res) => {
   }
 });
 
+// GET /api/rides/scheduled – Geplante Lieferungen für Fahrer
+router.get('/scheduled', async (req, res) => {
+  try {
+    if (req.user.role !== 'driver') {
+      return res.status(403).json({ error: 'Nur Fahrer können geplante Aufträge sehen' });
+    }
+
+    // Fahrer-Info laden (Fahrzeugtyp, Position, Radius)
+    const driverResult = await db.query(
+      'SELECT vehicle_type, latitude, longitude, max_pickup_radius_km, max_ride_distance_km FROM drivers WHERE user_id = $1',
+      [req.user.userId]
+    );
+    if (driverResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Fahrerprofil nicht gefunden' });
+    }
+    const driver = driverResult.rows[0];
+
+    // Geplante Aufträge laden: scheduled + noch nicht abgelaufen
+    // Auch vom Fahrer bereits akzeptierte geplante Aufträge
+    const result = await db.query(
+      `SELECT r.*, u.name AS customer_name
+       FROM rides r
+       LEFT JOIN users u ON u.id = r.customer_id
+       WHERE (
+         (r.status = 'scheduled' AND r.is_scheduled = true AND r.scheduled_at > NOW())
+         OR (r.driver_id = $1 AND r.is_scheduled = true AND r.status = 'accepted' AND r.scheduled_at > NOW() - INTERVAL '2 hours')
+       )
+       ORDER BY r.scheduled_at ASC`,
+      [req.user.userId]
+    );
+
+    // Filter: nur passende Fahrzeugtypen und innerhalb des Radius
+    let rides = result.rows;
+    if (driver.latitude && driver.longitude) {
+      const dLat = parseFloat(driver.latitude);
+      const dLng = parseFloat(driver.longitude);
+      const maxPickup = parseFloat(driver.max_pickup_radius_km) || 10;
+      const maxRide = parseFloat(driver.max_ride_distance_km) || 20;
+
+      rides = rides.filter((ride) => {
+        // Bereits akzeptierte Aufträge immer anzeigen
+        if (ride.driver_id === req.user.userId) return true;
+        // Fahrzeugtyp prüfen
+        if (driver.vehicle_type && ride.vehicle_type !== driver.vehicle_type) return false;
+        // Distanz prüfen
+        const pickupDist = haversineDistance(dLat, dLng, parseFloat(ride.pickup_lat), parseFloat(ride.pickup_lng));
+        const rideDist = parseFloat(ride.distance_km) || 0;
+        return pickupDist <= maxPickup && rideDist <= maxRide;
+      });
+    }
+
+    res.json({ rides });
+  } catch (err) {
+    console.error('Fehler bei GET /rides/scheduled:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 // GET /api/rides/:id – Einzelnen Auftrag laden
 router.get('/:id', async (req, res) => {
   try {
@@ -333,7 +417,7 @@ router.get('/:id', async (req, res) => {
 
     const isCustomer = ride.customer_id === req.user.userId;
     const isDriver = ride.driver_id === req.user.userId;
-    const isPendingForDriver = ride.status === 'pending' && req.user.role === 'driver';
+    const isPendingForDriver = (ride.status === 'pending' || ride.status === 'scheduled') && req.user.role === 'driver';
 
     if (!isCustomer && !isDriver && !isPendingForDriver) {
       return res.status(403).json({ error: 'Kein Zugriff auf diesen Auftrag' });
@@ -361,7 +445,7 @@ router.patch('/:id/accept', async (req, res) => {
     }
     const ride = rideResult.rows[0];
 
-    if (ride.status !== 'pending') {
+    if (ride.status !== 'pending' && ride.status !== 'scheduled') {
       return res.status(409).json({ error: 'Auftrag ist nicht mehr verfügbar' });
     }
 
@@ -568,7 +652,7 @@ router.patch('/:id/cancel', async (req, res) => {
     }
     const ride = rideResult.rows[0];
 
-    if (!['pending', 'accepted'].includes(ride.status)) {
+    if (!['pending', 'accepted', 'scheduled'].includes(ride.status)) {
       return res.status(400).json({ error: 'Dieser Auftrag kann nicht mehr storniert werden' });
     }
 

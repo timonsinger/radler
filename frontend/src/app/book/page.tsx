@@ -27,7 +27,7 @@ interface AvailableDriver {
   rating?: number;
 }
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 type VehicleType = 'bicycle' | 'cargo_bike';
 type HandoverMethod = 'code' | 'photo';
 
@@ -106,6 +106,11 @@ export default function BookPage() {
   const [deliveryMethod, setDeliveryMethod] = useState<HandoverMethod>('code');
   const [deliveryCode, setDeliveryCode] = useState('');
 
+  // Zeitplanung
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -161,6 +166,13 @@ export default function BookPage() {
     setLoading(true);
     try {
       const price = calculatePrice(vehicleType, distanceKm);
+
+      // Geplante Lieferung: Datum + Uhrzeit zusammenbauen
+      let scheduled_at: string | undefined;
+      if (scheduleMode === 'later' && scheduledDate && scheduledTime) {
+        scheduled_at = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+      }
+
       const data = await apiFetch('/api/rides', {
         method: 'POST',
         body: JSON.stringify({
@@ -179,6 +191,7 @@ export default function BookPage() {
           pickup_code: pickupMethod === 'code' ? pickupCode : undefined,
           delivery_method: deliveryMethod,
           delivery_code: deliveryMethod === 'code' ? deliveryCode : undefined,
+          scheduled_at,
         }),
       });
       if (data.error) throw new Error(data.error);
@@ -200,9 +213,9 @@ export default function BookPage() {
     });
   }
 
-  const stepTitles = ['Abholort', 'Zielort', 'Fahrzeug', 'Übergabe', 'Zusammenfassung'];
+  const stepTitles = ['Abholort', 'Zielort', 'Fahrzeug', 'Übergabe', 'Zeitpunkt', 'Zusammenfassung'];
   const driverCount = availableDrivers.length;
-  const showDrivers = step <= 5;
+  const showDrivers = step <= 6;
 
   const canProceedStep4 =
     (pickupMethod === 'photo' || pickupCode.length === 4) &&
@@ -508,8 +521,91 @@ export default function BookPage() {
           </div>
         )}
 
-        {/* Schritt 5: Zusammenfassung */}
-        {step === 5 && pickup && dropoff && vehicleType && (
+        {/* Schritt 5: Zeitpunkt */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-3xl p-5 shadow-sm space-y-4">
+              <h3 className="font-semibold text-gray-900">Wann soll geliefert werden?</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setScheduleMode('now')}
+                  className={`py-4 px-3 rounded-2xl text-center transition-colors ${
+                    scheduleMode === 'now'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  <span className="text-2xl block mb-1">⚡</span>
+                  <span className="font-semibold text-sm">Jetzt</span>
+                  <p className={`text-xs mt-0.5 ${scheduleMode === 'now' ? 'text-white/75' : 'text-gray-400'}`}>Sofort loslegen</p>
+                </button>
+                <button
+                  onClick={() => setScheduleMode('later')}
+                  className={`py-4 px-3 rounded-2xl text-center transition-colors ${
+                    scheduleMode === 'later'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  <span className="text-2xl block mb-1">📅</span>
+                  <span className="font-semibold text-sm">Später</span>
+                  <p className={`text-xs mt-0.5 ${scheduleMode === 'later' ? 'text-white/75' : 'text-gray-400'}`}>Termin wählen</p>
+                </button>
+              </div>
+
+              {scheduleMode === 'later' && (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Datum</label>
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Uhrzeit</label>
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    />
+                  </div>
+                  {scheduledDate && scheduledTime && (
+                    <div className="bg-primary/5 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <span className="text-lg">📅</span>
+                      <p className="text-sm text-primary font-medium">
+                        {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        {' um '}
+                        {scheduledTime} Uhr
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep(4)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
+                Zurück
+              </button>
+              <button
+                onClick={() => setStep(6)}
+                disabled={scheduleMode === 'later' && (!scheduledDate || !scheduledTime)}
+                className="flex-1 bg-primary text-primary-fg font-semibold py-4 rounded-2xl disabled:opacity-40 active:bg-primary-dark transition-colors"
+              >
+                Weiter
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Schritt 6: Zusammenfassung */}
+        {step === 6 && pickup && dropoff && vehicleType && (
           <div className="space-y-4">
             <div className="relative">
               <Map
@@ -564,8 +660,25 @@ export default function BookPage() {
               </div>
             )}
 
+            {/* Scheduling Info in Summary */}
+            {scheduleMode === 'later' && scheduledDate && scheduledTime && (
+              <div className="bg-white rounded-3xl p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📅</span>
+                  <div>
+                    <p className="text-xs text-gray-400">Geplante Abholung</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      {' um '}
+                      {scheduledTime} Uhr
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3">
-              <button onClick={() => setStep(4)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
+              <button onClick={() => setStep(5)} className="flex-1 bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl">
                 Zurück
               </button>
               <button
@@ -573,7 +686,7 @@ export default function BookPage() {
                 disabled={loading}
                 className="flex-1 bg-primary text-primary-fg font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60 active:bg-primary-dark transition-colors"
               >
-                {loading ? 'Buchen...' : `Buchen – ${formatPrice(calculatePrice(vehicleType, distanceKm))}`}
+                {loading ? 'Buchen...' : scheduleMode === 'later' ? `Planen – ${formatPrice(calculatePrice(vehicleType, distanceKm))}` : `Buchen – ${formatPrice(calculatePrice(vehicleType, distanceKm))}`}
               </button>
             </div>
           </div>

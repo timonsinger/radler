@@ -36,6 +36,7 @@ export function formatDistance(km: number): string {
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending: 'Suche Kurier...',
+    scheduled: 'Geplant – wartet auf Abholzeit',
     accepted: 'Kurier unterwegs zur Abholung',
     picked_up: 'Paket abgeholt',
     delivered: 'Zugestellt ✓',

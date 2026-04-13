@@ -34,6 +34,8 @@ interface Ride {
   delivery_code_confirmed?: boolean;
   rating?: number;
   rating_comment?: string;
+  scheduled_at?: string;
+  is_scheduled?: boolean;
 }
 
 interface LocationPing {
@@ -92,6 +94,9 @@ export default function TrackPage() {
   const [ratingError, setRatingError] = useState('');
   const [existingRating, setExistingRating] = useState<{ rating: number; comment?: string } | null>(null);
 
+  // Countdown for scheduled rides
+  const [countdown, setCountdown] = useState('');
+
   // Driver profile state
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverReviewCount, setDriverReviewCount] = useState(0);
@@ -114,6 +119,32 @@ export default function TrackPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Countdown für geplante Lieferungen
+  useEffect(() => {
+    if (!ride?.is_scheduled || !ride?.scheduled_at || ride.status !== 'scheduled') return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const target = new Date(ride.scheduled_at!).getTime();
+      const diff = target - now;
+      if (diff <= 0) {
+        setCountdown('Wird aktiviert...');
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      if (days > 0) {
+        setCountdown(`${days}T ${hours}h ${mins}min`);
+      } else if (hours > 0) {
+        setCountdown(`${hours}h ${mins}min ${secs}s`);
+      } else {
+        setCountdown(`${mins}min ${secs}s`);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [ride?.is_scheduled, ride?.scheduled_at, ride?.status]);
 
   // Existing rating prüfen
   useEffect(() => {
@@ -276,7 +307,8 @@ export default function TrackPage() {
     );
   }
 
-  const isActive = ['pending', 'accepted', 'picked_up'].includes(ride.status);
+  const isActive = ['pending', 'accepted', 'picked_up', 'scheduled'].includes(ride.status);
+  const isScheduled = ride.status === 'scheduled' && ride.is_scheduled;
   const isDelivered = ride.status === 'delivered';
   const isExpired = ride.status === 'expired';
   const hasExistingRating = !!(existingRating || ride.rating);
@@ -331,6 +363,26 @@ export default function TrackPage() {
       <div className="bg-white mx-4 mt-4 rounded-3xl shadow-sm">
         <StatusBar status={ride.status as Parameters<typeof StatusBar>[0]['status']} />
       </div>
+
+      {/* Scheduled Countdown */}
+      {isScheduled && ride.scheduled_at && (
+        <div className="mx-4 mt-3 bg-purple-50 border border-purple-100 rounded-3xl p-5 shadow-sm text-center">
+          <span className="text-3xl block mb-2">📅</span>
+          <p className="text-sm font-semibold text-purple-800 mb-1">Geplante Lieferung</p>
+          <p className="text-xs text-purple-600 mb-3">
+            {new Date(ride.scheduled_at).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {' um '}
+            {new Date(ride.scheduled_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+          </p>
+          <div className="bg-white rounded-2xl px-4 py-3">
+            <p className="text-xs text-gray-400 mb-1">Countdown</p>
+            <p className="text-2xl font-black text-purple-700 font-mono">{countdown || '...'}</p>
+          </div>
+          <p className="text-xs text-purple-500 mt-3">
+            30 Minuten vorher wird ein Kurier gesucht
+          </p>
+        </div>
+      )}
 
       {/* Info Box */}
       <div className="bg-white mx-4 mt-3 rounded-3xl p-4 shadow-sm space-y-3">

@@ -18,6 +18,8 @@ interface Ride {
   price: number;
   created_at: string;
   vehicle_type: string;
+  scheduled_at?: string;
+  is_scheduled?: boolean;
 }
 
 export default function DashboardPage() {

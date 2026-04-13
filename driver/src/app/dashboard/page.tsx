@@ -34,6 +34,8 @@ interface Ride {
   delivery_method?: string;
   delivery_code_confirmed?: boolean;
   delivery_photo_url?: string;
+  scheduled_at?: string;
+  is_scheduled?: boolean;
 }
 
 export default function DashboardPage() {
@@ -51,6 +53,9 @@ export default function DashboardPage() {
   const [ratingToast, setRatingToast] = useState<{ rating: number; comment?: string } | null>(null);
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
   const [isApproved, setIsApproved] = useState(true);
+  const [scheduledRides, setScheduledRides] = useState<Ride[]>([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [acceptingScheduled, setAcceptingScheduled] = useState<string | null>(null);
   const [approvalToast, setApprovalToast] = useState<string | null>(null);
   const [rejectionAlert, setRejectionAlert] = useState<string | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,6 +71,15 @@ export default function DashboardPage() {
     () => position ? { lat: position.latitude, lng: position.longitude } : null,
     [position]
   );
+
+  // Geplante Aufträge laden
+  const loadScheduledRides = useCallback(() => {
+    setScheduledLoading(true);
+    apiFetch('/api/rides/scheduled')
+      .then((data) => setScheduledRides(data.rides || []))
+      .catch(console.error)
+      .finally(() => setScheduledLoading(false));
+  }, []);
 
   // Init: User laden, Online-Status + Einstellungen laden
   useEffect(() => {
@@ -91,7 +105,10 @@ export default function DashboardPage() {
         if (settingsData.max_ride_distance_km) setMaxRideDistance(settingsData.max_ride_distance_km);
       })
       .catch(console.error);
-  }, [router]);
+
+    // Geplante Aufträge laden
+    loadScheduledRides();
+  }, [router, loadScheduledRides]);
 
   // Socket.io verbinden wenn User geladen (nur einmal, nicht bei activeRide-Änderung)
   useEffect(() => {
@@ -227,6 +244,23 @@ export default function DashboardPage() {
       setToggleLoading(false);
     }
   }, [isOnline, maxPickupRadius, maxRideDistance]);
+
+  // Geplanten Auftrag annehmen
+  async function handleAcceptScheduled(rideId: string) {
+    setAcceptingScheduled(rideId);
+    try {
+      const data = await apiFetch(`/api/rides/${rideId}/accept`, { method: 'PATCH' });
+      if (data.error) throw new Error(data.error);
+      // Ride in der Liste als akzeptiert markieren
+      setScheduledRides((prev) =>
+        prev.map((r) => r.id === rideId ? { ...r, status: 'accepted', driver_id: user?.id } : r)
+      );
+    } catch (err) {
+      console.error('Geplanten Auftrag annehmen fehlgeschlagen:', err);
+    } finally {
+      setAcceptingScheduled(null);
+    }
+  }
 
   // Auftrag annehmen
   async function handleAccept() {
@@ -428,6 +462,90 @@ export default function DashboardPage() {
 
         {/* Tagesstatistik */}
         <StatsCard />
+
+        {/* Geplante Aufträge */}
+        {scheduledRides.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-sm overflow-hidden">
+            <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">📅</span>
+                <h3 className="font-bold text-gray-900">Geplante Aufträge</h3>
+              </div>
+              <button
+                onClick={loadScheduledRides}
+                className="text-xs text-primary font-semibold active:opacity-60"
+              >
+                Aktualisieren
+              </button>
+            </div>
+            <div className="px-4 pb-4 space-y-2">
+              {scheduledRides.map((ride) => {
+                const isAccepted = ride.status === 'accepted';
+                const scheduledDate = ride.scheduled_at ? new Date(ride.scheduled_at) : null;
+                return (
+                  <div
+                    key={ride.id}
+                    className={`rounded-2xl p-4 border ${
+                      isAccepted ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'
+                    }`}
+                  >
+                    {/* Zeit + Status */}
+                    <div className="flex items-center justify-between mb-2">
+                      {scheduledDate && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm">🕐</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {scheduledDate.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {' '}
+                            {scheduledDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      )}
+                      {isAccepted ? (
+                        <span className="text-xs font-semibold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">✓ Angenommen</span>
+                      ) : (
+                        <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full">Offen</span>
+                      )}
+                    </div>
+
+                    {/* Route */}
+                    <div className="space-y-1 mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                        <p className="text-xs text-gray-700 line-clamp-1">{ride.pickup_address}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                        <p className="text-xs text-gray-700 line-clamp-1">{ride.dropoff_address}</p>
+                      </div>
+                    </div>
+
+                    {/* Preis + Distanz */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs text-gray-500">
+                        {ride.distance_km ? `${Number(ride.distance_km).toFixed(1)} km` : '–'} · {ride.vehicle_type === 'bicycle' ? '🚲' : '🚛'}
+                      </span>
+                      <span className="text-sm font-bold text-gray-900">
+                        +{Number(ride.driver_payout || Number(ride.price) * 0.85).toFixed(2).replace('.', ',')} €
+                      </span>
+                    </div>
+
+                    {/* Annehmen Button */}
+                    {!isAccepted && (
+                      <button
+                        onClick={() => handleAcceptScheduled(ride.id)}
+                        disabled={acceptingScheduled === ride.id}
+                        className="w-full bg-primary text-white font-semibold py-3 rounded-xl active:bg-primary-dark disabled:opacity-50 transition-colors"
+                      >
+                        {acceptingScheduled === ride.id ? 'Wird angenommen...' : 'Annehmen'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Info-Text */}
         {isOnline && (

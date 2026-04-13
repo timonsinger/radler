@@ -108,5 +108,83 @@ server.listen(PORT, () => {
     } catch (err) {
       console.error('Fehler bei Auto-Stornierung:', err);
     }
+
+    // Geplante Lieferungen: 30 Min vor scheduled_at → status von 'scheduled' auf 'pending' setzen und Fahrer benachrichtigen
+    try {
+      const scheduledResult = await db.query(`
+        UPDATE rides
+        SET status = 'pending'
+        WHERE status = 'scheduled'
+        AND is_scheduled = true
+        AND driver_id IS NULL
+        AND scheduled_at <= NOW() + INTERVAL '30 minutes'
+        RETURNING *
+      `);
+      if (scheduledResult.rows.length > 0) {
+        const io = getIO();
+        for (const ride of scheduledResult.rows) {
+          // Passende Fahrer benachrichtigen
+          const driversResult = await db.query(
+            `SELECT d.user_id, d.latitude, d.longitude, d.max_pickup_radius_km, d.max_ride_distance_km
+             FROM drivers d
+             WHERE d.is_online = true
+               AND d.vehicle_type = $1
+               AND d.latitude IS NOT NULL
+               AND d.longitude IS NOT NULL`,
+            [ride.vehicle_type]
+          );
+
+          const pLat = parseFloat(ride.pickup_lat);
+          const pLng = parseFloat(ride.pickup_lng);
+          const rideDist = parseFloat(ride.distance_km) || 0;
+
+          let notified = 0;
+          for (const driver of driversResult.rows) {
+            const maxPickup = parseFloat(driver.max_pickup_radius_km) || 10;
+            const maxRide = parseFloat(driver.max_ride_distance_km) || 20;
+            const R = 6371;
+            const dLat = (pLat - parseFloat(driver.latitude)) * Math.PI / 180;
+            const dLng = (pLng - parseFloat(driver.longitude)) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(parseFloat(driver.latitude) * Math.PI / 180) * Math.cos(pLat * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const pickupDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            if (pickupDist <= maxPickup && rideDist <= maxRide) {
+              io.to(`user:${driver.user_id}`).emit('ride:new', { ride });
+              notified++;
+            }
+          }
+          console.log(`Geplanter Auftrag ${ride.id} aktiviert (scheduled_at: ${ride.scheduled_at}): ${notified} Fahrer benachrichtigt`);
+        }
+      }
+    } catch (err) {
+      console.error('Fehler bei Scheduled-Aktivierung:', err);
+    }
+
+    // Geplante Lieferungen: 30 Min nach scheduled_at ohne Fahrer → expired
+    try {
+      const expiredScheduled = await db.query(`
+        UPDATE rides
+        SET status = 'expired', completed_at = NOW()
+        WHERE is_scheduled = true
+        AND status IN ('pending', 'scheduled')
+        AND driver_id IS NULL
+        AND scheduled_at < NOW() - INTERVAL '30 minutes'
+        RETURNING id, customer_id
+      `);
+      if (expiredScheduled.rows.length > 0) {
+        const io = getIO();
+        expiredScheduled.rows.forEach((ride) => {
+          io.to(`user:${ride.customer_id}`).emit('ride:status_update', {
+            rideId: ride.id,
+            status: 'expired',
+          });
+          console.log(`Geplanter Auftrag ${ride.id} abgelaufen (kein Fahrer gefunden)`);
+        });
+      }
+    } catch (err) {
+      console.error('Fehler bei Scheduled-Expiration:', err);
+    }
   }, 60000);
 });

@@ -82,6 +82,7 @@ router.get('/dashboard', async (req, res) => {
         },
       },
       pendingDriverApprovals: parseInt(pendingQ.rows[0].count, 10),
+      scheduledRides: await db.query("SELECT COUNT(*) AS count FROM rides WHERE status = 'scheduled' AND is_scheduled = true AND scheduled_at > NOW()").then(r => parseInt(r.rows[0].count, 10)).catch(() => 0),
     });
   } catch (err) {
     console.error('Fehler bei GET /admin/dashboard:', err);
@@ -139,6 +140,7 @@ router.get('/rides', async (req, res) => {
               r.accepted_at, r.completed_at,
               r.pickup_method, r.pickup_code, r.pickup_code_confirmed,
               r.delivery_method, r.delivery_code, r.delivery_code_confirmed,
+              r.scheduled_at, r.is_scheduled,
               c_user.name AS customer_name, c_user.email AS customer_email,
               d_user.name AS driver_name, d_user.email AS driver_email
        FROM rides r

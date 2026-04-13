@@ -9,27 +9,33 @@ interface Ride {
   price: number;
   created_at: string;
   vehicle_type: string;
+  scheduled_at?: string;
+  is_scheduled?: boolean;
 }
 
 /* 4d: Status-Badges */
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-[#FFF8E7] text-[#9E9E9E]',
+  scheduled: 'bg-[#F3E8FF] text-[#7C3AED]',
   accepted: 'bg-[#E3F2FD] text-[#1565C0]',
   picked_up: 'bg-[#1A1A1A] text-white',
   delivered: 'bg-[#E8F5E9] text-[#1B5E20]',
   cancelled: 'bg-[#FFF0EC] text-[#C44525]',
+  expired: 'bg-[#FFF0EC] text-[#C44525]',
 };
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Suche Kurier',
+  scheduled: 'Geplant',
   accepted: 'Angenommen',
   picked_up: 'Unterwegs',
   delivered: 'Zugestellt',
   cancelled: 'Storniert',
+  expired: 'Abgelaufen',
 };
 
 export default function RideCard({ ride }: { ride: Ride }) {
-  const isActive = ['pending', 'accepted', 'picked_up'].includes(ride.status);
+  const isActive = ['pending', 'accepted', 'picked_up', 'scheduled'].includes(ride.status);
   const isCancelled = ride.status === 'cancelled';
 
   const card = (
@@ -95,6 +101,18 @@ export default function RideCard({ ride }: { ride: Ride }) {
           </p>
         </div>
       </div>
+
+      {/* Scheduled info */}
+      {ride.is_scheduled && ride.scheduled_at && (
+        <div className="mt-2.5 bg-purple-50 rounded-xl px-3 py-2 flex items-center gap-2">
+          <span className="text-sm">📅</span>
+          <p className="font-body text-xs text-purple-700 font-medium">
+            {new Date(ride.scheduled_at).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {' um '}
+            {new Date(ride.scheduled_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+          </p>
+        </div>
+      )}
 
       {/* Footer: Datum + ID */}
       <div className="border-t border-radler-ink-100 mt-3 pt-2.5 flex items-center justify-between">

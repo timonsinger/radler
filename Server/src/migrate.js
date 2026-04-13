@@ -162,6 +162,14 @@ async function migrate() {
   await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS last_online TIMESTAMP`);
   console.log('✅ Spalte drivers.last_online erstellt/geprüft');
 
+  // Geplante Lieferungen
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN DEFAULT false`);
+  // Status-Constraint mit 'scheduled' erweitern
+  await db.query(`ALTER TABLE rides DROP CONSTRAINT IF EXISTS rides_status_check`);
+  await db.query(`ALTER TABLE rides ADD CONSTRAINT rides_status_check CHECK (status IN ('pending', 'accepted', 'picked_up', 'delivered', 'cancelled', 'expired', 'scheduled'))`);
+  console.log('✅ Spalten rides.scheduled_at, rides.is_scheduled + Status scheduled erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

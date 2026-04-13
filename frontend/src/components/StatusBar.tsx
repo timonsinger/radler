@@ -1,4 +1,4 @@
-type Status = 'pending' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled' | 'expired';
+type Status = 'pending' | 'scheduled' | 'accepted' | 'picked_up' | 'delivered' | 'cancelled' | 'expired';
 
 const STEPS = [
   { key: 'pending', label: 'Gebucht' },
@@ -27,6 +27,15 @@ export default function StatusBar({ status }: { status: Status }) {
     return (
       <div className="flex items-center justify-center py-3">
         <span className="font-body font-semibold text-radler-ink-400">Abgelaufen</span>
+      </div>
+    );
+  }
+
+  if (status === 'scheduled') {
+    return (
+      <div className="flex items-center justify-center py-3 gap-2">
+        <span className="text-lg">📅</span>
+        <span className="font-body font-semibold text-purple-600">Geplant</span>
       </div>
     );
   }
