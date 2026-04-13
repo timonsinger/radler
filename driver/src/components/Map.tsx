@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { KONSTANZ_CENTER } from '@/lib/maps';
 
 interface Marker {
@@ -15,11 +15,12 @@ interface Props {
   driverLocation?: { lat: number; lng: number } | null;
   showRoute?: boolean;
   radiusKm?: number;
+  showCenterButton?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export default function Map({ markers = [], driverLocation, showRoute, radiusKm, className = '', style }: Props) {
+export default function Map({ markers = [], driverLocation, showRoute, radiusKm, showCenterButton, className = '', style }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -27,6 +28,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
   const prevMarkersKeyRef = useRef('');
+  const initialCenterDone = useRef(false);
 
   useEffect(() => {
     const init = () => {
@@ -99,6 +101,22 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     });
   }, [markers, showRoute]);
 
+  // Einmal auf aktuelle Position zentrieren wenn GPS verfügbar wird
+  useEffect(() => {
+    if (!googleMapRef.current || !driverLocation || initialCenterDone.current) return;
+    if (markers.length === 0) {
+      googleMapRef.current.setCenter(driverLocation);
+      googleMapRef.current.setZoom(15);
+      initialCenterDone.current = true;
+    }
+  }, [driverLocation, markers.length]);
+
+  const centerOnDriver = useCallback(() => {
+    if (!googleMapRef.current || !driverLocation) return;
+    googleMapRef.current.panTo(driverLocation);
+    googleMapRef.current.setZoom(15);
+  }, [driverLocation]);
+
   // Fahrer-Marker + Radius-Kreis
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps) return;
@@ -153,5 +171,21 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     }
   }, [driverLocation, radiusKm]);
 
-  return <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} style={style} />;
+  return (
+    <div className="relative">
+      <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} style={style} />
+      {showCenterButton && driverLocation && (
+        <button
+          onClick={centerOnDriver}
+          className="absolute bottom-3 right-3 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center active:bg-gray-100 z-10"
+          title="Auf mich zentrieren"
+        >
+          <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
 }

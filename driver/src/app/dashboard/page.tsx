@@ -361,6 +361,7 @@ export default function DashboardPage() {
             <Map
               driverLocation={driverLocation}
               radiusKm={maxPickupRadius}
+              showCenterButton
               className="h-48 rounded-none"
             />
           )}
