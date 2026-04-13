@@ -18,6 +18,7 @@ interface UserData {
     rating: number;
     description?: string;
     availability?: string;
+    accepted_services?: string;
   };
 }
 
@@ -31,9 +32,14 @@ export default function DriverProfilePage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [vehicleType, setVehicleType] = useState<'bicycle' | 'cargo_bike'>('bicycle');
+  type VehicleType = 'bicycle' | 'cargo_bike' | 'rikscha' | 'rikscha_xl' | 'tandem';
+  type AcceptedServices = 'courier' | 'rikscha' | 'both';
+  const [vehicleType, setVehicleType] = useState<VehicleType>('bicycle');
+  const [acceptedServices, setAcceptedServices] = useState<AcceptedServices>('both');
   const [description, setDescription] = useState('');
   const [availability, setAvailability] = useState('');
+
+  const isRikschaVehicle = ['rikscha', 'rikscha_xl', 'tandem'].includes(vehicleType);
   const [stats, setStats] = useState<DriverStats | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -53,6 +59,7 @@ export default function DriverProfilePage() {
       setPhone(userData.phone || '');
       if (userData.driver) {
         setVehicleType(userData.driver.vehicle_type || 'bicycle');
+        setAcceptedServices(userData.driver.accepted_services || 'both');
         setDescription(userData.driver.description || '');
         setAvailability(userData.driver.availability || '');
       }
@@ -108,7 +115,12 @@ export default function DriverProfilePage() {
       // Fahrer-Profil speichern
       await apiFetch('/api/drivers/profile', {
         method: 'PATCH',
-        body: JSON.stringify({ vehicle_type: vehicleType, description, availability }),
+        body: JSON.stringify({
+          vehicle_type: vehicleType,
+          accepted_services: isRikschaVehicle ? acceptedServices : 'courier',
+          description,
+          availability,
+        }),
       });
 
       setSaved(true);
@@ -218,29 +230,62 @@ export default function DriverProfilePage() {
           {/* Fahrzeugtyp Toggle */}
           <div>
             <label className="text-xs text-gray-400 font-semibold uppercase">Fahrzeugtyp</label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <button
-                onClick={() => setVehicleType('bicycle')}
-                className={`py-3 rounded-xl text-sm font-semibold transition-colors ${
-                  vehicleType === 'bicycle'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-50 text-gray-600 border border-gray-200'
-                }`}
-              >
-                🚲 Fahrrad
-              </button>
-              <button
-                onClick={() => setVehicleType('cargo_bike')}
-                className={`py-3 rounded-xl text-sm font-semibold transition-colors ${
-                  vehicleType === 'cargo_bike'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-50 text-gray-600 border border-gray-200'
-                }`}
-              >
-                🚛 Lastenrad
-              </button>
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {([
+                { type: 'bicycle' as VehicleType, emoji: '🚲', label: 'Fahrrad' },
+                { type: 'cargo_bike' as VehicleType, emoji: '🚛', label: 'Lastenrad' },
+                { type: 'rikscha' as VehicleType, emoji: '🛺', label: 'Rikscha' },
+                { type: 'rikscha_xl' as VehicleType, emoji: '🛺', label: 'Rikscha XL' },
+                { type: 'tandem' as VehicleType, emoji: '🚲🚲', label: 'Tandem' },
+              ]).map((v) => (
+                <button
+                  key={v.type}
+                  onClick={() => {
+                    setVehicleType(v.type);
+                    if (['bicycle', 'cargo_bike'].includes(v.type)) setAcceptedServices('courier');
+                  }}
+                  className={`py-3 rounded-xl text-sm font-semibold transition-colors ${
+                    vehicleType === v.type
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  {v.emoji} {v.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Service-Auswahl — nur bei Rikscha-Fahrzeugen */}
+          {isRikschaVehicle && (
+            <div>
+              <label className="text-xs text-gray-400 font-semibold uppercase">Auftragsarten</label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {([
+                  { key: 'both' as AcceptedServices, emoji: '🚲🛺', label: 'Beides' },
+                  { key: 'rikscha' as AcceptedServices, emoji: '🛺', label: 'Nur Rikscha' },
+                  { key: 'courier' as AcceptedServices, emoji: '📦', label: 'Nur Kurier' },
+                ]).map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setAcceptedServices(s.key)}
+                    className={`py-3 rounded-xl text-sm font-semibold transition-colors ${
+                      acceptedServices === s.key
+                        ? 'bg-primary text-white'
+                        : 'bg-gray-50 text-gray-600 border border-gray-200'
+                    }`}
+                  >
+                    {s.emoji} {s.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                {acceptedServices === 'both' ? 'Du erhältst Kurier- und Rikscha-Aufträge'
+                  : acceptedServices === 'rikscha' ? 'Du erhältst nur Rikscha-Aufträge (Taxi & Tour)'
+                  : 'Du erhältst nur Kurier-Aufträge (Pakete)'}
+              </p>
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between">

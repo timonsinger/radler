@@ -107,19 +107,26 @@ router.patch('/settings', requireDriver, async (req, res) => {
   }
 });
 
-// PATCH /api/drivers/vehicle-type – Fahrzeugtyp setzen
+// PATCH /api/drivers/vehicle-type – Fahrzeugtyp + Service-Auswahl setzen
 router.patch('/vehicle-type', requireDriver, async (req, res) => {
   try {
-    const { vehicle_type } = req.body;
-    if (!vehicle_type || !['bicycle', 'cargo_bike'].includes(vehicle_type)) {
-      return res.status(400).json({ error: 'vehicle_type muss bicycle oder cargo_bike sein' });
+    const { vehicle_type, accepted_services } = req.body;
+    if (!vehicle_type || !['bicycle', 'cargo_bike', 'rikscha', 'rikscha_xl', 'tandem'].includes(vehicle_type)) {
+      return res.status(400).json({ error: 'Ungültiger Fahrzeugtyp' });
     }
+
+    // accepted_services bestimmen
+    let services = accepted_services || 'both';
+    if (!['courier', 'rikscha', 'both'].includes(services)) services = 'both';
+    // Fahrrad/Lastenrad können nur Kurier
+    if (['bicycle', 'cargo_bike'].includes(vehicle_type)) services = 'courier';
+
     await db.query(
-      'UPDATE drivers SET vehicle_type = $1 WHERE user_id = $2',
-      [vehicle_type, req.user.userId]
+      'UPDATE drivers SET vehicle_type = $1, accepted_services = $2 WHERE user_id = $3',
+      [vehicle_type, services, req.user.userId]
     );
-    console.log(`Fahrzeugtyp gesetzt: ${req.user.userId} → ${vehicle_type}`);
-    res.json({ vehicle_type });
+    console.log(`Fahrzeugtyp gesetzt: ${req.user.userId} → ${vehicle_type}, Services: ${services}`);
+    res.json({ vehicle_type, accepted_services: services });
   } catch (err) {
     console.error('Fehler bei PATCH /drivers/vehicle-type:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
@@ -249,13 +256,22 @@ router.get('/stats', requireDriver, async (req, res) => {
 // PATCH /api/drivers/profile – Fahrerprofil bearbeiten
 router.patch('/profile', requireDriver, async (req, res) => {
   try {
-    const { vehicle_type, description, availability } = req.body;
+    const { vehicle_type, description, availability, accepted_services } = req.body;
     const fields = [];
     const params = [];
 
-    if (vehicle_type && ['bicycle', 'cargo_bike'].includes(vehicle_type)) {
+    if (vehicle_type && ['bicycle', 'cargo_bike', 'rikscha', 'rikscha_xl', 'tandem'].includes(vehicle_type)) {
       params.push(vehicle_type);
       fields.push(`vehicle_type = $${params.length}`);
+      // Fahrrad/Lastenrad → nur Kurier
+      if (['bicycle', 'cargo_bike'].includes(vehicle_type)) {
+        params.push('courier');
+        fields.push(`accepted_services = $${params.length}`);
+      }
+    }
+    if (accepted_services && ['courier', 'rikscha', 'both'].includes(accepted_services)) {
+      params.push(accepted_services);
+      fields.push(`accepted_services = $${params.length}`);
     }
     if (description !== undefined) {
       const desc = (description || '').substring(0, 200);
@@ -274,7 +290,7 @@ router.patch('/profile', requireDriver, async (req, res) => {
 
     params.push(req.user.userId);
     const result = await db.query(
-      `UPDATE drivers SET ${fields.join(', ')} WHERE user_id = $${params.length} RETURNING vehicle_type, description, availability`,
+      `UPDATE drivers SET ${fields.join(', ')} WHERE user_id = $${params.length} RETURNING vehicle_type, description, availability, accepted_services`,
       params
     );
 
@@ -289,7 +305,7 @@ router.patch('/profile', requireDriver, async (req, res) => {
 router.get('/profile', requireDriver, async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT vehicle_type, rating, description, availability FROM drivers WHERE user_id = $1',
+      'SELECT vehicle_type, rating, description, availability, accepted_services FROM drivers WHERE user_id = $1',
       [req.user.userId]
     );
     if (result.rows.length === 0) {

@@ -7,13 +7,17 @@ import { register } from '@/lib/auth';
 import { apiFetch } from '@/lib/api';
 
 type VehicleType = 'bicycle' | 'cargo_bike' | 'rikscha' | 'rikscha_xl' | 'tandem';
+type AcceptedServices = 'courier' | 'rikscha' | 'both';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
   const [vehicleType, setVehicleType] = useState<VehicleType>('bicycle');
+  const [acceptedServices, setAcceptedServices] = useState<AcceptedServices>('both');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isRikschaVehicle = ['rikscha', 'rikscha_xl', 'tandem'].includes(vehicleType);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -25,10 +29,13 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(form.name, form.email, form.password, form.phone);
-      // Fahrzeugtyp setzen
+      // Fahrzeugtyp + Service-Auswahl setzen
       await apiFetch('/api/drivers/vehicle-type', {
         method: 'PATCH',
-        body: JSON.stringify({ vehicle_type: vehicleType }),
+        body: JSON.stringify({
+          vehicle_type: vehicleType,
+          accepted_services: isRikschaVehicle ? acceptedServices : 'courier',
+        }),
       });
       router.replace('/dashboard');
     } catch (err: unknown) {
@@ -102,6 +109,35 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {/* Service-Auswahl — nur bei Rikscha-Fahrzeugen */}
+          {isRikschaVehicle && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-2">Welche Aufträge möchtest du annehmen?</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: 'both' as AcceptedServices, emoji: '🚲🛺', label: 'Beides', desc: 'Kurier & Rikscha' },
+                  { key: 'rikscha' as AcceptedServices, emoji: '🛺', label: 'Nur Rikscha', desc: 'Personenfahrten' },
+                  { key: 'courier' as AcceptedServices, emoji: '📦', label: 'Nur Kurier', desc: 'Lieferungen' },
+                ]).map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setAcceptedServices(s.key)}
+                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all appearance-none ${
+                      acceptedServices === s.key
+                        ? 'border-primary bg-primary-bg'
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <span className="text-2xl mb-1">{s.emoji}</span>
+                    <span className="font-bold text-xs text-gray-900">{s.label}</span>
+                    <span className="text-[10px] text-gray-400 mt-0.5">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-error text-sm px-4 py-3 rounded-xl">

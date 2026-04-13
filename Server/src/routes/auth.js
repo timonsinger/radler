@@ -173,7 +173,7 @@ router.get('/me', authMiddleware, async (req, res) => {
     // Falls Fahrer: Driver-Daten mitschicken
     if (user.role === 'driver') {
       const driverResult = await db.query(
-        'SELECT vehicle_type, is_online, rating, description, availability, onboarding_completed, is_approved FROM drivers WHERE user_id = $1',
+        'SELECT vehicle_type, is_online, rating, description, availability, onboarding_completed, is_approved, accepted_services FROM drivers WHERE user_id = $1',
         [user.id]
       );
       if (driverResult.rows.length > 0) {

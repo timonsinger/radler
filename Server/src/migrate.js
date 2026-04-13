@@ -198,6 +198,12 @@ async function migrate() {
   await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS tour_note TEXT`);
   console.log('✅ Rikscha-Spalten (service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note) erstellt/geprüft');
 
+  // Fahrer: accepted_services (courier, rikscha, both)
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS accepted_services VARCHAR(20) DEFAULT 'both'`);
+  await db.query(`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_accepted_services_check`);
+  await db.query(`ALTER TABLE drivers ADD CONSTRAINT drivers_accepted_services_check CHECK (accepted_services IN ('courier', 'rikscha', 'both'))`);
+  console.log('✅ Spalte drivers.accepted_services erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

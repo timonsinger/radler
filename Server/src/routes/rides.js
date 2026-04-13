@@ -267,6 +267,11 @@ router.post('/', async (req, res) => {
 
     console.log(`Neuer Auftrag erstellt: ${ride.id} | ${vehicle_type} | ${pickup_address} → ${dropoff_address} | ${price.toFixed(2)}€${isScheduled ? ' (geplant: ' + scheduled_at + ')' : ''}`);
 
+    // Service-Filter für Fahrer: Rikscha-Rides nur an Rikscha-Fahrer, Kurier nur an Kurier-Fahrer
+    const rideServiceType = service_type || 'courier';
+    const isRikschaRide = ['rikscha_taxi', 'rikscha_tour'].includes(rideServiceType);
+    const serviceFilter = isRikschaRide ? "('rikscha', 'both')" : "('courier', 'both')";
+
     // Bei geplanten Lieferungen: sofort alle Fahrer im Radius benachrichtigen (als scheduled)
     if (isScheduled) {
       try {
@@ -275,6 +280,7 @@ router.post('/', async (req, res) => {
           `SELECT d.user_id, d.latitude, d.longitude, d.max_pickup_radius_km, d.max_ride_distance_km
            FROM drivers d
            WHERE d.vehicle_type = $1
+             AND COALESCE(d.accepted_services, 'both') IN ${serviceFilter}
              AND d.latitude IS NOT NULL
              AND d.longitude IS NOT NULL`,
           [vehicle_type]
@@ -305,7 +311,7 @@ router.post('/', async (req, res) => {
       return res.status(201).json({ ride, price });
     }
 
-    // Nur passende Fahrer benachrichtigen (Radius-Filterung)
+    // Nur passende Fahrer benachrichtigen (Radius-Filterung + Service-Filter)
     try {
       const io = getIO();
       const driversResult = await db.query(
@@ -313,6 +319,7 @@ router.post('/', async (req, res) => {
          FROM drivers d
          WHERE d.is_online = true
            AND d.vehicle_type = $1
+           AND COALESCE(d.accepted_services, 'both') IN ${serviceFilter}
            AND d.latitude IS NOT NULL
            AND d.longitude IS NOT NULL`,
         [vehicle_type]
@@ -336,7 +343,7 @@ router.post('/', async (req, res) => {
           notified++;
         }
       }
-      console.log(`Auftrag ${ride.id}: ${notified} Fahrer benachrichtigt`);
+      console.log(`Auftrag ${ride.id}: ${notified} Fahrer benachrichtigt (Service: ${rideServiceType})`);
     } catch (socketErr) {
       console.error('Socket.io Fehler bei ride:new:', socketErr.message);
     }
