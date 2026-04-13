@@ -254,6 +254,7 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
           markers={markers}
           driverLocation={driverLocation}
           showRoute
+          showCenterButton
           style={{ width: '100%', height: mapExpanded ? '65vh' : '35vh', transition: 'height 0.3s ease' }}
           className="rounded-2xl"
         />

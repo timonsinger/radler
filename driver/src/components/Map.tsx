@@ -176,7 +176,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       <div ref={mapRef} className={`w-full rounded-2xl overflow-hidden ${className}`} style={style} />
       {showCenterButton && driverLocation && (
         <button
-          onClick={centerOnDriver}
+          onClick={(e) => { e.stopPropagation(); centerOnDriver(); }}
           className="absolute bottom-3 right-3 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center active:bg-gray-100 z-10"
           title="Auf mich zentrieren"
         >
