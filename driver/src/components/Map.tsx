@@ -152,21 +152,26 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
     }
 
     // Radius-Kreis
+    const circleColor = isOnline ? '#22C55E' : '#BDBDBD';
     if (radiusKm && radiusKm > 0) {
       if (!radiusCircleRef.current) {
         radiusCircleRef.current = new window.google.maps.Circle({
           map: googleMapRef.current,
           center: driverLocation,
           radius: radiusKm * 1000,
-          fillColor: '#22C55E',
+          fillColor: circleColor,
           fillOpacity: 0.08,
-          strokeColor: '#22C55E',
+          strokeColor: circleColor,
           strokeWeight: 1.5,
           strokeOpacity: 0.5,
         });
       } else {
         radiusCircleRef.current.setCenter(driverLocation);
         radiusCircleRef.current.setRadius(radiusKm * 1000);
+        radiusCircleRef.current.setOptions({
+          fillColor: circleColor,
+          strokeColor: circleColor,
+        });
       }
     } else {
       radiusCircleRef.current?.setMap(null);

@@ -359,7 +359,7 @@ export default function DashboardPage() {
           {/* Karte immer sichtbar */}
           <Map
             driverLocation={driverLocation}
-            radiusKm={isOnline ? maxPickupRadius : undefined}
+            radiusKm={maxPickupRadius}
             showCenterButton
             isOnline={isOnline}
             className="h-48 rounded-none"
