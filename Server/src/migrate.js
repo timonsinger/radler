@@ -99,6 +99,12 @@ async function migrate() {
   await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS availability VARCHAR(100)`);
   console.log('✅ Spalten drivers.description, drivers.availability erstellt/geprüft');
 
+  // Bewertungssystem erweitern
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS rating INTEGER`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS rating_comment TEXT`);
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS rated_at TIMESTAMP`);
+  console.log('✅ Spalten rides.rating, rides.rating_comment, rides.rated_at erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

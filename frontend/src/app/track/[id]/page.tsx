@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
@@ -21,6 +21,7 @@ interface Ride {
   dropoff_lng: number;
   price: number;
   vehicle_type: string;
+  driver_id?: string;
   driver_name?: string;
   customer_name?: string;
   delivery_photo_url?: string;
@@ -32,6 +33,7 @@ interface Ride {
   delivery_code?: string;
   delivery_code_confirmed?: boolean;
   rating?: number;
+  rating_comment?: string;
 }
 
 interface LocationPing {
@@ -40,7 +42,34 @@ interface LocationPing {
   timestamp: number;
 }
 
+interface DriverProfile {
+  id: string;
+  name: string;
+  profile_image_url?: string;
+  member_since: string;
+  vehicle_type?: string;
+  rating?: number;
+  description?: string;
+  availability?: string;
+  completed_rides?: number;
+}
+
+interface Review {
+  rating: number;
+  comment?: string;
+  date: string;
+  customer_name: string;
+}
+
 const MAX_PINGS = 10;
+
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function formatMemberSince(d: string) {
+  return new Date(d).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+}
 
 export default function TrackPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,12 +81,27 @@ export default function TrackPage() {
   const [lastPingTime, setLastPingTime] = useState<number | null>(null);
   const [secondsSinceLastPing, setSecondsSinceLastPing] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [selectedRating, setSelectedRating] = useState(0);
-  const [hoveredRating, setHoveredRating] = useState(0);
-  const [ratingSubmitted, setRatingSubmitted] = useState(false);
-  const [ratingLoading, setRatingLoading] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Rating state
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [ratingError, setRatingError] = useState('');
+  const [existingRating, setExistingRating] = useState<{ rating: number; comment?: string } | null>(null);
+
+  // Driver profile state
+  const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
+  const [driverReviewCount, setDriverReviewCount] = useState(0);
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [driverReviews, setDriverReviews] = useState<Review[]>([]);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [reviewsTotalPages, setReviewsTotalPages] = useState(1);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
   // Ride laden
   useEffect(() => {
@@ -70,6 +114,51 @@ export default function TrackPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Existing rating prüfen
+  useEffect(() => {
+    if (!id || !ride || ride.status !== 'delivered') return;
+    if (ride.rating) {
+      setExistingRating({ rating: ride.rating, comment: ride.rating_comment });
+      return;
+    }
+    apiFetch(`/api/rides/${id}/rating`)
+      .then((data) => {
+        if (data.rating) {
+          setExistingRating({ rating: data.rating, comment: data.rating_comment });
+        }
+      })
+      .catch(() => {});
+  }, [id, ride?.status]);
+
+  // Fahrer-Profil laden wenn zugewiesen
+  useEffect(() => {
+    if (!ride?.driver_id) return;
+    apiFetch(`/api/auth/profile/${ride.driver_id}`)
+      .then((data) => {
+        if (data.profile) setDriverProfile(data.profile);
+      })
+      .catch(() => {});
+    apiFetch(`/api/drivers/${ride.driver_id}/reviews?limit=1`)
+      .then((data) => {
+        setDriverReviewCount(data.total_reviews || 0);
+      })
+      .catch(() => {});
+  }, [ride?.driver_id]);
+
+  // Driver reviews laden für Modal
+  const loadReviews = useCallback((page: number) => {
+    if (!ride?.driver_id) return;
+    setReviewsLoading(true);
+    apiFetch(`/api/drivers/${ride.driver_id}/reviews?page=${page}&limit=10`)
+      .then((data) => {
+        if (page === 1) setDriverReviews(data.reviews || []);
+        else setDriverReviews((prev) => [...prev, ...(data.reviews || [])]);
+        setReviewsTotalPages(data.totalPages || 1);
+      })
+      .catch(() => {})
+      .finally(() => setReviewsLoading(false));
+  }, [ride?.driver_id]);
 
   // Ticker: Sekunden seit letztem Ping
   useEffect(() => {
@@ -92,10 +181,8 @@ export default function TrackPage() {
       socket = getSocket();
 
       socket.emit('ride:subscribe', { rideId: id });
-      console.log('[Track] ride:subscribe gesendet für', id);
 
       socket.on('ride:accepted', (data: { ride: Ride }) => {
-        console.log('[Track] ride:accepted empfangen', data.ride.id);
         setRide(data.ride);
       });
 
@@ -109,9 +196,7 @@ export default function TrackPage() {
         }
       });
 
-      // Fahrer Position Pings
       socket.on('driver:location_update', (data: { rideId: string; lat?: number; lng?: number; latitude?: number; longitude?: number }) => {
-        console.log('[Track] driver:location_update empfangen', data);
         if (data.rideId !== id) return;
         const lat = data.lat ?? data.latitude ?? 0;
         const lng = data.lng ?? data.longitude ?? 0;
@@ -135,19 +220,21 @@ export default function TrackPage() {
     };
   }, [id]);
 
-  async function handleRating(stars: number) {
-    if (ratingLoading || ratingSubmitted) return;
-    setSelectedRating(stars);
+  async function handleSubmitRating() {
+    if (!selectedRating || ratingLoading || ratingSubmitted) return;
     setRatingLoading(true);
+    setRatingError('');
     try {
-      await apiFetch(`/api/rides/${id}/rating`, {
+      const data = await apiFetch(`/api/rides/${id}/rating`, {
         method: 'POST',
-        body: JSON.stringify({ rating: stars }),
+        body: JSON.stringify({ rating: selectedRating, comment: ratingComment || undefined }),
       });
+      if (data.error) throw new Error(data.error);
       setRatingSubmitted(true);
-      setRide((prev) => prev ? { ...prev, rating: stars } : prev);
-    } catch {
-      // ignorieren
+      setExistingRating({ rating: selectedRating, comment: ratingComment });
+      setRide((prev) => prev ? { ...prev, rating: selectedRating } : prev);
+    } catch (err) {
+      setRatingError(err instanceof Error ? err.message : 'Bewertung fehlgeschlagen');
     } finally {
       setRatingLoading(false);
     }
@@ -164,6 +251,12 @@ export default function TrackPage() {
     } finally {
       setCancelling(false);
     }
+  }
+
+  function openDriverModal() {
+    setShowDriverModal(true);
+    setReviewsPage(1);
+    loadReviews(1);
   }
 
   if (loading) {
@@ -185,7 +278,9 @@ export default function TrackPage() {
 
   const isActive = ['pending', 'accepted', 'picked_up'].includes(ride.status);
   const isDelivered = ride.status === 'delivered';
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const hasExistingRating = !!(existingRating || ride.rating);
+  const displayRating = existingRating?.rating || ride.rating || 0;
+  const displayComment = existingRating?.comment || ride.rating_comment || '';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -215,7 +310,6 @@ export default function TrackPage() {
           locationPings={locationPings}
           className="h-64"
         />
-        {/* Letzte Position Anzeige */}
         {secondsSinceLastPing !== null && (
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -227,9 +321,7 @@ export default function TrackPage() {
         {locationPings.length === 0 && ['accepted', 'picked_up'].includes(ride.status) && (
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-            <p className="text-xs text-gray-500">
-              Warte auf Fahrer-Position...
-            </p>
+            <p className="text-xs text-gray-500">Warte auf Fahrer-Position...</p>
           </div>
         )}
       </div>
@@ -285,9 +377,56 @@ export default function TrackPage() {
             )}
           </div>
         )}
+      </div>
 
-        {ride.driver_name && ['accepted', 'picked_up'].includes(ride.status) && (
-          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+      {/* Fahrer-Profil Card */}
+      {ride.driver_id && driverProfile && ['accepted', 'picked_up', 'delivered'].includes(ride.status) && (
+        <button
+          onClick={openDriverModal}
+          className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm text-left active:bg-gray-50 transition-colors w-[calc(100%-2rem)]"
+        >
+          <div className="flex items-center gap-3">
+            {driverProfile.profile_image_url ? (
+              <img
+                src={`${apiBase}${driverProfile.profile_image_url}`}
+                alt={driverProfile.name}
+                className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-lg font-bold">{driverProfile.name.charAt(0).toUpperCase()}</span>
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900">{driverProfile.name}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {driverProfile.rating && (
+                  <>
+                    <span className="text-xs font-bold text-gray-700">{Number(driverProfile.rating).toFixed(1)}</span>
+                    <span className="text-yellow-400 text-xs">★</span>
+                    {driverReviewCount > 0 && (
+                      <span className="text-xs text-gray-400">({driverReviewCount})</span>
+                    )}
+                    <span className="text-gray-300 mx-1">·</span>
+                  </>
+                )}
+                <span className="text-xs text-gray-500">{driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</span>
+              </div>
+              {driverProfile.description && (
+                <p className="text-xs text-gray-400 mt-1 line-clamp-1">{driverProfile.description}</p>
+              )}
+            </div>
+            <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+      )}
+
+      {/* Fallback: Fahrer-Name ohne Profil */}
+      {ride.driver_name && !driverProfile && ['accepted', 'picked_up'].includes(ride.status) && (
+        <div className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
               <span className="text-lg">{ride.vehicle_type === 'bicycle' ? '🚲' : '🚛'}</span>
             </div>
@@ -296,53 +435,99 @@ export default function TrackPage() {
               <p className="text-sm font-semibold text-gray-900">{ride.driver_name}</p>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Zugestellt Banner */}
-      {isDelivered && (
-        <div className="mx-4 mt-3 bg-primary-light border border-primary/30 rounded-3xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xl">✓</span>
-          </div>
-          <div>
-            <p className="font-bold text-primary-dark">Zugestellt!</p>
-            <p className="text-sm text-gray-600">Dein Paket wurde erfolgreich geliefert.</p>
-          </div>
         </div>
       )}
 
-      {/* Bewertung */}
+      {/* Zugestellt + Bewertung */}
       {isDelivered && (
         <div className="mx-4 mt-3 bg-white rounded-3xl p-5 shadow-sm">
-          {ride.rating || ratingSubmitted ? (
-            <div className="flex flex-col items-center gap-2 py-2">
-              <div className="flex gap-1">
+          {/* Zugestellt Header */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">Dein Paket wurde zugestellt!</p>
+              <p className="text-xs text-gray-500">Lieferung erfolgreich abgeschlossen</p>
+            </div>
+          </div>
+
+          {/* Ablieferungsfoto */}
+          {ride.delivery_photo_url && (
+            <img
+              src={`${apiBase}${ride.delivery_photo_url}`}
+              alt="Ablieferungsfoto"
+              className="w-full rounded-2xl object-cover max-h-48 mb-4"
+            />
+          )}
+
+          {/* Bewertung: schon bewertet */}
+          {hasExistingRating || ratingSubmitted ? (
+            <div className="text-center py-2">
+              <div className="flex justify-center gap-1 mb-2">
                 {[1,2,3,4,5].map((s) => (
-                  <span key={s} className={`text-3xl ${s <= (ride.rating || selectedRating) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                  <span key={s} className={`text-3xl ${s <= displayRating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
                 ))}
               </div>
-              <p className="text-sm font-semibold text-gray-700">Danke für deine Bewertung! 🙏</p>
+              {displayComment && (
+                <p className="text-sm text-gray-500 italic mb-2">&ldquo;{displayComment}&rdquo;</p>
+              )}
+              <p className="text-sm font-semibold text-green-600">Danke für deine Bewertung!</p>
             </div>
           ) : (
             <>
-              <p className="text-sm font-semibold text-gray-700 mb-1 text-center">Wie war dein Kurier?</p>
-              <p className="text-xs text-gray-400 text-center mb-4">Bewerte die Lieferung</p>
-              <div className="flex justify-center gap-2">
-                {[1,2,3,4,5].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleRating(s)}
-                    onMouseEnter={() => setHoveredRating(s)}
-                    onMouseLeave={() => setHoveredRating(0)}
-                    disabled={ratingLoading}
-                    className="text-4xl transition-transform active:scale-90 disabled:opacity-50"
-                  >
-                    <span className={s <= (hoveredRating || selectedRating) ? 'text-yellow-400' : 'text-gray-200'}>★</span>
-                  </button>
-                ))}
+              {/* Bewertung: Formular */}
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-sm font-semibold text-gray-700 mb-1 text-center">Wie war dein Kurier?</p>
+                <p className="text-xs text-gray-400 text-center mb-4">Bewerte die Lieferung</p>
+
+                <div className="flex justify-center gap-3 mb-4">
+                  {[1,2,3,4,5].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSelectedRating(s)}
+                      disabled={ratingLoading}
+                      className="p-1 transition-transform active:scale-90 disabled:opacity-50"
+                      style={{ minWidth: 44, minHeight: 44 }}
+                    >
+                      <span className={`text-4xl ${s <= selectedRating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                    </button>
+                  ))}
+                </div>
+
+                {selectedRating > 0 && (
+                  <>
+                    <textarea
+                      value={ratingComment}
+                      onChange={(e) => setRatingComment(e.target.value.substring(0, 500))}
+                      placeholder="Möchtest du etwas dazu sagen? (optional)"
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none mb-1"
+                    />
+                    <p className="text-right text-xs text-gray-300 mb-3">{ratingComment.length}/500</p>
+
+                    {ratingError && (
+                      <p className="text-center text-sm text-red-500 mb-3">{ratingError}</p>
+                    )}
+
+                    <button
+                      onClick={handleSubmitRating}
+                      disabled={ratingLoading}
+                      className="w-full bg-green-500 text-white font-semibold py-4 rounded-2xl active:bg-green-600 disabled:opacity-50 transition-colors mb-2"
+                    >
+                      {ratingLoading ? 'Wird gesendet...' : 'Bewertung abschicken'}
+                    </button>
+                    <button
+                      onClick={() => setSelectedRating(0)}
+                      className="w-full text-gray-400 text-sm py-2"
+                    >
+                      Überspringen
+                    </button>
+                  </>
+                )}
               </div>
-              {ratingLoading && <p className="text-center text-xs text-gray-400 mt-3">Wird gespeichert…</p>}
             </>
           )}
         </div>
@@ -355,18 +540,6 @@ export default function TrackPage() {
           <img
             src={`${apiBase}${ride.pickup_photo_url}`}
             alt="Abholungsfoto"
-            className="w-full rounded-2xl object-cover max-h-64"
-          />
-        </div>
-      )}
-
-      {/* Ablieferungsfoto */}
-      {isDelivered && ride.delivery_photo_url && (
-        <div className="mx-4 mt-3 bg-white rounded-3xl p-4 shadow-sm">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Dein Paket wurde zugestellt:</p>
-          <img
-            src={`${apiBase}${ride.delivery_photo_url}`}
-            alt="Ablieferungsfoto"
             className="w-full rounded-2xl object-cover max-h-64"
           />
         </div>
@@ -394,6 +567,140 @@ export default function TrackPage() {
               Zurück zur Übersicht
             </button>
           </Link>
+        </div>
+      )}
+
+      {/* Fahrer-Profil Modal */}
+      {showDriverModal && driverProfile && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowDriverModal(false)} />
+          <div className="relative w-full bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowDriverModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center z-10"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-200 rounded-full" />
+            </div>
+
+            <div className="px-5 pb-8 space-y-5">
+              {/* Avatar + Name */}
+              <div className="flex flex-col items-center text-center pt-2">
+                {driverProfile.profile_image_url ? (
+                  <img
+                    src={`${apiBase}${driverProfile.profile_image_url}`}
+                    alt={driverProfile.name}
+                    className="w-20 h-20 rounded-full object-cover mb-3"
+                  />
+                ) : (
+                  <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mb-3">
+                    <span className="text-white text-3xl font-bold">{driverProfile.name.charAt(0).toUpperCase()}</span>
+                  </div>
+                )}
+                <h2 className="text-xl font-bold text-gray-900">{driverProfile.name}</h2>
+                <p className="text-xs text-gray-400 mt-1">Dabei seit {formatMemberSince(driverProfile.member_since)}</p>
+
+                {driverProfile.rating && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <div className="flex">
+                      {[1,2,3,4,5].map((s) => (
+                        <span key={s} className={`text-lg ${s <= Math.round(Number(driverProfile.rating)) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                      ))}
+                    </div>
+                    <span className="text-sm font-bold text-gray-700">{Number(driverProfile.rating).toFixed(1)}</span>
+                    {driverReviewCount > 0 && (
+                      <span className="text-xs text-gray-400">({driverReviewCount} Bewertungen)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-400">Fahrzeug</p>
+                  <p className="text-sm font-bold mt-0.5">{driverProfile.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-400">Fahrten</p>
+                  <p className="text-sm font-bold mt-0.5">{driverProfile.completed_rides ?? 0}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-400">Bewertung</p>
+                  <p className="text-sm font-bold mt-0.5">{driverProfile.rating ? Number(driverProfile.rating).toFixed(1) : '–'}</p>
+                </div>
+              </div>
+
+              {/* Beschreibung */}
+              {driverProfile.description && (
+                <div>
+                  <p className="text-xs text-gray-400 font-semibold uppercase mb-1">Über mich</p>
+                  <p className="text-sm text-gray-700">{driverProfile.description}</p>
+                </div>
+              )}
+
+              {/* Verfügbarkeit */}
+              {driverProfile.availability && (
+                <div>
+                  <p className="text-xs text-gray-400 font-semibold uppercase mb-1">Verfügbarkeit</p>
+                  <p className="text-sm text-gray-700">{driverProfile.availability}</p>
+                </div>
+              )}
+
+              {/* Bewertungen */}
+              <div>
+                <p className="text-xs text-gray-400 font-semibold uppercase mb-3">Bewertungen</p>
+                {driverReviews.length === 0 && !reviewsLoading && (
+                  <p className="text-sm text-gray-400 text-center py-4">Noch keine Bewertungen</p>
+                )}
+                <div className="space-y-3">
+                  {driverReviews.map((review, i) => (
+                    <div key={i} className="bg-gray-50 rounded-2xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="flex">
+                            {[1,2,3,4,5].map((s) => (
+                              <span key={s} className={`text-sm ${s <= review.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                            ))}
+                          </div>
+                          <span className="text-xs font-semibold text-gray-600">{review.customer_name}</span>
+                        </div>
+                        {review.date && (
+                          <span className="text-xs text-gray-300">{formatDate(review.date)}</span>
+                        )}
+                      </div>
+                      {review.comment && (
+                        <p className="text-sm text-gray-600 mt-1">{review.comment}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {reviewsPage < reviewsTotalPages && (
+                  <button
+                    onClick={() => {
+                      const next = reviewsPage + 1;
+                      setReviewsPage(next);
+                      loadReviews(next);
+                    }}
+                    disabled={reviewsLoading}
+                    className="w-full text-primary font-semibold text-sm py-3 mt-3 active:text-primary/70 disabled:opacity-50"
+                  >
+                    {reviewsLoading ? 'Laden...' : 'Mehr Bewertungen laden'}
+                  </button>
+                )}
+                {reviewsLoading && driverReviews.length === 0 && (
+                  <div className="py-4"><LoadingSpinner /></div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -26,10 +26,21 @@ module.exports = {
           from: { transform: 'translateY(100%)' },
           to: { transform: 'translateY(0)' },
         },
+        slideDown: {
+          from: { transform: 'translateY(-100%)', opacity: '0' },
+          to: { transform: 'translateY(0)', opacity: '1' },
+        },
+        shake: {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '25%': { transform: 'translateX(-4px)' },
+          '75%': { transform: 'translateX(4px)' },
+        },
       },
       animation: {
         'pulse-online': 'pulse_online 2s ease-in-out infinite',
         'slide-up': 'slideUp 0.35s ease-out',
+        'slide-down': 'slideDown 0.35s ease-out',
+        'shake': 'shake 0.3s ease-in-out',
       },
     },
   },

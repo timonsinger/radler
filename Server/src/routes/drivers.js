@@ -216,10 +216,16 @@ router.get('/stats', requireDriver, async (req, res) => {
       [req.user.userId]
     );
 
+    const reviewCountResult = await db.query(
+      "SELECT COUNT(*) AS total FROM rides WHERE driver_id = $1 AND rating IS NOT NULL",
+      [req.user.userId]
+    );
+
     const stats = {
       completed_rides: parseInt(ridesResult.rows[0].completed_rides, 10),
       earnings_today: parseFloat(ridesResult.rows[0].earnings_today),
       average_rating: ratingResult.rows[0]?.rating || null,
+      total_reviews: parseInt(reviewCountResult.rows[0].total, 10),
     };
 
     res.json({ stats });
@@ -295,6 +301,76 @@ router.get('/profile', requireDriver, async (req, res) => {
     });
   } catch (err) {
     console.error('Fehler bei GET /drivers/profile:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// GET /api/drivers/:id/reviews – Bewertungen eines Fahrers (öffentlich)
+router.get('/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    // Prüfe ob Fahrer existiert
+    const driverResult = await db.query(
+      'SELECT rating FROM drivers WHERE user_id = $1',
+      [id]
+    );
+    if (driverResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Fahrer nicht gefunden' });
+    }
+
+    // Statistiken
+    const statsResult = await db.query(
+      `SELECT COUNT(*) AS total,
+              COUNT(CASE WHEN rating = 5 THEN 1 END) AS five,
+              COUNT(CASE WHEN rating = 4 THEN 1 END) AS four,
+              COUNT(CASE WHEN rating = 3 THEN 1 END) AS three,
+              COUNT(CASE WHEN rating = 2 THEN 1 END) AS two,
+              COUNT(CASE WHEN rating = 1 THEN 1 END) AS one
+       FROM rides WHERE driver_id = $1 AND rating IS NOT NULL`,
+      [id]
+    );
+    const stats = statsResult.rows[0];
+
+    // Reviews laden
+    const reviewsResult = await db.query(
+      `SELECT r.rating, r.rating_comment, r.rated_at, u.name AS customer_name
+       FROM rides r
+       JOIN users u ON u.id = r.customer_id
+       WHERE r.driver_id = $1 AND r.rating IS NOT NULL
+       ORDER BY r.rated_at DESC NULLS LAST
+       LIMIT $2 OFFSET $3`,
+      [id, limit, offset]
+    );
+
+    // Nur Vornamen zurückgeben
+    const reviews = reviewsResult.rows.map(r => ({
+      rating: r.rating,
+      comment: r.rating_comment,
+      date: r.rated_at,
+      customer_name: r.customer_name ? r.customer_name.split(' ')[0] : 'Anonym',
+    }));
+
+    const total = parseInt(stats.total, 10);
+    res.json({
+      average_rating: driverResult.rows[0].rating ? parseFloat(driverResult.rows[0].rating) : null,
+      total_reviews: total,
+      distribution: {
+        5: parseInt(stats.five, 10),
+        4: parseInt(stats.four, 10),
+        3: parseInt(stats.three, 10),
+        2: parseInt(stats.two, 10),
+        1: parseInt(stats.one, 10),
+      },
+      reviews,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error('Fehler bei GET /drivers/:id/reviews:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });

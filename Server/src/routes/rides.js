@@ -668,14 +668,34 @@ router.post('/:id/pickup-photo', upload.single('photo'), async (req, res) => {
   }
 });
 
+// GET /api/rides/:id/rating – Bewertung eines Auftrags abfragen
+router.get('/:id/rating', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'SELECT rating, rating_comment, rated_at FROM rides WHERE id = $1',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const { rating, rating_comment, rated_at } = result.rows[0];
+    res.json({ rating: rating || null, rating_comment: rating_comment || null, rated_at: rated_at || null });
+  } catch (err) {
+    console.error('Fehler bei GET /rides/:id/rating:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 // POST /api/rides/:id/rating – Bewertung abgeben
 router.post('/:id/rating', async (req, res) => {
   try {
     const { id } = req.params;
-    const { rating } = req.body;
+    const { rating, comment } = req.body;
 
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Bewertung muss zwischen 1 und 5 liegen' });
+    }
+    if (comment && comment.length > 500) {
+      return res.status(400).json({ error: 'Kommentar darf maximal 500 Zeichen lang sein' });
     }
 
     const rideResult = await db.query('SELECT * FROM rides WHERE id = $1', [id]);
@@ -684,22 +704,51 @@ router.post('/:id/rating', async (req, res) => {
 
     if (ride.customer_id !== req.user.userId) return res.status(403).json({ error: 'Kein Zugriff' });
     if (ride.status !== 'delivered') return res.status(400).json({ error: 'Nur zugestellte Aufträge können bewertet werden' });
+    if (ride.rating) return res.status(400).json({ error: 'Auftrag wurde bereits bewertet' });
 
-    await db.query('ALTER TABLE rides ADD COLUMN IF NOT EXISTS rating INTEGER');
-    await db.query('UPDATE rides SET rating = $1 WHERE id = $2', [rating, id]);
+    // 2 Minuten Wartezeit prüfen
+    if (ride.completed_at) {
+      const completedAt = new Date(ride.completed_at).getTime();
+      const now = Date.now();
+      const twoMinutes = 2 * 60 * 1000;
+      if (now - completedAt < twoMinutes) {
+        const remaining = Math.ceil((twoMinutes - (now - completedAt)) / 1000);
+        return res.status(400).json({ error: `Bitte warte noch ${remaining} Sekunden bevor du bewertest` });
+      }
+    }
+
+    await db.query(
+      'UPDATE rides SET rating = $1, rating_comment = $2, rated_at = NOW() WHERE id = $3',
+      [rating, comment || null, id]
+    );
 
     // Fahrer-Durchschnitt aktualisieren
+    let updatedDriverRating = null;
     if (ride.driver_id) {
       const avgResult = await db.query(
         "SELECT AVG(rating)::DECIMAL(3,2) AS avg_rating FROM rides WHERE driver_id = $1 AND rating IS NOT NULL",
         [ride.driver_id]
       );
       if (avgResult.rows[0]?.avg_rating) {
-        await db.query('UPDATE drivers SET rating = $1 WHERE user_id = $2', [avgResult.rows[0].avg_rating, ride.driver_id]);
+        updatedDriverRating = parseFloat(avgResult.rows[0].avg_rating);
+        await db.query('UPDATE drivers SET rating = $1 WHERE user_id = $2', [updatedDriverRating, ride.driver_id]);
+      }
+
+      // Socket Event an Fahrer senden
+      try {
+        const io = getIO();
+        io.to(`user:${ride.driver_id}`).emit('ride:rated', {
+          rideId: id,
+          rating,
+          comment: comment || null,
+        });
+      } catch (socketErr) {
+        console.error('Socket.io Fehler bei ride:rated:', socketErr.message);
       }
     }
 
-    res.json({ rating });
+    console.log(`Bewertung für Auftrag ${id}: ${rating} Sterne`);
+    res.json({ rating, rating_comment: comment || null, driver_rating: updatedDriverRating });
   } catch (err) {
     console.error('Fehler bei POST /rides/:id/rating:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });

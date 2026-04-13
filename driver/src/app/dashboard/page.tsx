@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [delivered, setDelivered] = useState(false);
   const [maxPickupRadius, setMaxPickupRadius] = useState(10);
   const [maxRideDistance, setMaxRideDistance] = useState(20);
+  const [ratingToast, setRatingToast] = useState<{ rating: number; comment?: string } | null>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isOnlineRef = useRef(false);
 
@@ -111,16 +112,23 @@ export default function DashboardPage() {
       }
     };
 
+    const handleRideRated = (data: { rideId: string; rating: number; comment?: string }) => {
+      setRatingToast({ rating: data.rating, comment: data.comment });
+      setTimeout(() => setRatingToast(null), 5000);
+    };
+
     socket.on('ride:new', handleRideNew);
     socket.on('ride:removed', handleRideRemoved);
     socket.on('ride:status_update', handleStatusUpdate);
     socket.on('connect', handleReconnect);
+    socket.on('ride:rated', handleRideRated);
 
     return () => {
       socket.off('ride:new', handleRideNew);
       socket.off('ride:removed', handleRideRemoved);
       socket.off('ride:status_update', handleStatusUpdate);
       socket.off('connect', handleReconnect);
+      socket.off('ride:rated', handleRideRated);
       disconnectSocket();
     };
   }, [user]); // activeRide bewusst entfernt - kein disconnect bei Ride-Änderungen
@@ -229,6 +237,9 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-primary flex flex-col items-center justify-center px-6 text-center">
         <div className="text-8xl mb-6">✅</div>
         <h2 className="text-3xl font-black text-white mb-2">Zugestellt!</h2>
+        {activeRide && (
+          <p className="text-2xl font-bold text-white/90 mb-1">+{Number(activeRide.price).toFixed(2).replace('.', ',')} €</p>
+        )}
         <p className="text-white/70">Auftrag erfolgreich abgeschlossen.</p>
         <p className="text-white/50 text-sm mt-2">Gleich zurück...</p>
       </div>
@@ -391,6 +402,30 @@ export default function DashboardPage() {
           onDecline={() => setPendingRide(null)}
           accepting={accepting}
         />
+      )}
+
+      {/* Bewertungs-Toast */}
+      {ratingToast && (
+        <div className="fixed top-14 left-4 right-4 z-50 animate-slide-down">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-yellow-50 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-xl">⭐</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-900">Neue Bewertung</p>
+              <div className="flex items-center gap-1">
+                {[1,2,3,4,5].map((s) => (
+                  <span key={s} className={`text-sm ${s <= ratingToast.rating ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => setRatingToast(null)} className="text-gray-300 p-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
