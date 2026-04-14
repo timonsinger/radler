@@ -138,13 +138,19 @@ function setupSockets(server) {
         );
 
         const ridesResult = await db.query(
-          `SELECT id FROM rides
+          `SELECT id, is_scheduled, scheduled_at FROM rides
            WHERE driver_id = $1 AND status IN ('accepted', 'picked_up')`,
           [userId]
         );
 
         // Nur alle 30 Sekunden an Kunden senden
         for (const ride of ridesResult.rows) {
+          // Bei geplanten Aufträgen: Position erst 10 Min. vorher an Kunden senden
+          if (ride.is_scheduled && ride.scheduled_at) {
+            const minutesUntil = (new Date(ride.scheduled_at).getTime() - Date.now()) / 60000;
+            if (minutesUntil > 10) continue; // Noch zu früh, Position nicht weiterleiten
+          }
+
           if (shouldSendToCustomer(ride.id)) {
             io.to(`ride:${ride.id}`).emit('driver:location_update', {
               rideId: ride.id,

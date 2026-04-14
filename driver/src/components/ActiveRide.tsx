@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Map from './Map';
 import { apiFetch } from '@/lib/api';
 import { formatPrice } from '@/lib/maps';
+
+interface RouteInfo {
+  distanceKm: number;
+  durationMin: number;
+}
 
 interface Ride {
   id: string;
@@ -111,6 +116,11 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [routeInfoData, setRouteInfoData] = useState<{ toPickup?: RouteInfo; pickupToDropoff?: RouteInfo }>({});
+
+  const handleRouteInfo = useCallback((info: { toPickup?: RouteInfo; pickupToDropoff?: RouteInfo }) => {
+    setRouteInfoData(info);
+  }, []);
 
   // Rikscha detection
   const isRikscha = ['rikscha_taxi', 'rikscha_tour'].includes(ride.service_type || '');
@@ -317,11 +327,45 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
           markers={markers}
           driverLocation={driverLocation}
           showRoute
+          showSecondRoute
           showCenterButton
+          onRouteInfo={handleRouteInfo}
           style={{ width: '100%', height: mapExpanded ? '65vh' : '35vh', transition: 'height 0.3s ease' }}
           className="rounded-2xl"
         />
       </div>
+
+      {/* Routen-Infos */}
+      {(routeInfoData.toPickup || routeInfoData.pickupToDropoff) && (
+        <div className="px-4 pt-2 flex gap-2">
+          {routeInfoData.toPickup && ride.status === 'accepted' && (
+            <div className="flex-1 bg-green-50 rounded-xl px-3 py-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-green-700 font-semibold">
+                  {isRikscha ? 'Zum Treffpunkt' : 'Zur Abholung'}
+                </p>
+                <p className="text-xs font-bold text-green-800">
+                  {routeInfoData.toPickup.distanceKm.toFixed(1)} km · ~{routeInfoData.toPickup.durationMin} Min
+                </p>
+              </div>
+            </div>
+          )}
+          {routeInfoData.pickupToDropoff && (
+            <div className="flex-1 bg-blue-50 rounded-xl px-3 py-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-blue-700 font-semibold">
+                  {ride.status === 'accepted' ? (isRikscha ? 'Treffpunkt → Ziel' : 'Abholung → Ziel') : 'Zum Ziel'}
+                </p>
+                <p className="text-xs font-bold text-blue-800">
+                  {routeInfoData.pickupToDropoff.distanceKm.toFixed(1)} km · ~{routeInfoData.pickupToDropoff.durationMin} Min
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Info & Buttons */}
       <div className="bg-white">

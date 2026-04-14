@@ -108,6 +108,7 @@ export default function RegisterPage() {
                 </button>
               ))}
             </div>
+            <p className="text-xs text-gray-400 italic mt-1.5">Du kannst dein Fahrzeug jederzeit in deinem Profil ändern.</p>
           </div>
 
           {/* Service-Auswahl — nur bei Rikscha-Fahrzeugen */}

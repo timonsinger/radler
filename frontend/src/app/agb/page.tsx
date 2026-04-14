@@ -1,3 +1,10 @@
+// TODO: Kunden-spezifische AGB erweitern:
+// - Stornierungsgebühren (z.B. nach Fahrer-Annahme)
+// - Haftung bei Paketschäden
+// - Maximale Paketgröße/Gewicht pro Fahrzeugtyp
+// - Verbotene Gegenstände (Gefahrgut, etc.)
+// - Reklamationsprozess
+
 'use client';
 
 import Link from 'next/link';

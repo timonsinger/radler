@@ -10,23 +10,31 @@ interface Marker {
   label?: string;
 }
 
+interface RouteInfo {
+  distanceKm: number;
+  durationMin: number;
+}
+
 interface Props {
   markers?: Marker[];
   driverLocation?: { lat: number; lng: number } | null;
   showRoute?: boolean;
+  showSecondRoute?: boolean;
   radiusKm?: number;
   showCenterButton?: boolean;
   isOnline?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  onRouteInfo?: (info: { toPickup?: RouteInfo; pickupToDropoff?: RouteInfo }) => void;
 }
 
-export default function Map({ markers = [], driverLocation, showRoute, radiusKm, showCenterButton, isOnline = true, className = '', style }: Props) {
+export default function Map({ markers = [], driverLocation, showRoute, showSecondRoute, radiusKm, showCenterButton, isOnline = true, className = '', style, onRouteInfo }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const driverMarkerRef = useRef<google.maps.Marker | null>(null);
   const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const secondDirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const radiusCircleRef = useRef<google.maps.Circle | null>(null);
   const prevMarkersKeyRef = useRef('');
   const initialCenterDone = useRef(false);
@@ -85,6 +93,7 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
 
   // Route — nur einmal berechnen wenn sich Marker ändern
   const prevRouteKeyRef = useRef('');
+  const prevSecondRouteKeyRef = useRef('');
   useEffect(() => {
     if (!googleMapRef.current || !window.google?.maps || !showRoute || markers.length < 2) return;
 
@@ -109,6 +118,67 @@ export default function Map({ markers = [], driverLocation, showRoute, radiusKm,
       if (status === 'OK' && result) dirRendererRef.current!.setDirections(result);
     });
   }, [markers, showRoute]);
+
+  // Zweite Route: Abholung → Ziel (blau, gestrichelt)
+  useEffect(() => {
+    if (!googleMapRef.current || !window.google?.maps || !showSecondRoute || markers.length < 2 || !driverLocation) return;
+
+    const secondRouteKey = JSON.stringify({ driver: driverLocation, markers: markers.map(m => ({ lat: m.lat, lng: m.lng })) });
+    if (secondRouteKey === prevSecondRouteKeyRef.current) return;
+    prevSecondRouteKeyRef.current = secondRouteKey;
+
+    // Route 1 umfärben: Fahrer → Abholung (grün)
+    if (dirRendererRef.current) {
+      dirRendererRef.current.setOptions({
+        polylineOptions: { strokeColor: '#22C55E', strokeWeight: 4 },
+      });
+    }
+
+    // Fahrer → Abholort Route berechnen für Entfernungsinfo
+    const dirService = new window.google.maps.DirectionsService();
+    dirService.route({
+      origin: driverLocation,
+      destination: { lat: markers[0].lat, lng: markers[0].lng },
+      travelMode: window.google.maps.TravelMode.BICYCLING,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }, (result: any, status: any) => {
+      if (status === 'OK' && result) {
+        // Update Route 1 to show driver → pickup
+        dirRendererRef.current?.setDirections(result);
+        const leg = result.routes?.[0]?.legs?.[0];
+        const toPickup = leg ? {
+          distanceKm: (leg.distance?.value || 0) / 1000,
+          durationMin: Math.round((leg.duration?.value || 0) / 60),
+        } : undefined;
+
+        // Route 2: Abholung → Ziel
+        if (!secondDirRendererRef.current) {
+          secondDirRendererRef.current = new window.google.maps.DirectionsRenderer({
+            suppressMarkers: true,
+            preserveViewport: true,
+            polylineOptions: { strokeColor: '#3B82F6', strokeWeight: 4, strokeOpacity: 0.7 },
+          });
+          secondDirRendererRef.current.setMap(googleMapRef.current);
+        }
+        dirService.route({
+          origin: { lat: markers[0].lat, lng: markers[0].lng },
+          destination: { lat: markers[markers.length - 1].lat, lng: markers[markers.length - 1].lng },
+          travelMode: window.google.maps.TravelMode.BICYCLING,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        }, (result2: any, status2: any) => {
+          if (status2 === 'OK' && result2) {
+            secondDirRendererRef.current!.setDirections(result2);
+            const leg2 = result2.routes?.[0]?.legs?.[0];
+            const pickupToDropoff = leg2 ? {
+              distanceKm: (leg2.distance?.value || 0) / 1000,
+              durationMin: Math.round((leg2.duration?.value || 0) / 60),
+            } : undefined;
+            onRouteInfo?.({ toPickup, pickupToDropoff });
+          }
+        });
+      }
+    });
+  }, [markers, showSecondRoute, driverLocation, onRouteInfo]);
 
   // Zoom passend zum Radius berechnen
   const fitToRadius = useCallback(() => {

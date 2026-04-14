@@ -316,6 +316,11 @@ export default function TrackPage() {
   const isExpired = ride.status === 'expired';
   const isRikscha = ['rikscha_taxi', 'rikscha_tour'].includes(ride.service_type || '');
   const isTour = ride.service_type === 'rikscha_tour';
+
+  // Fahrer-Position nur anzeigen wenn: Sofort-Auftrag ODER geplanter Zeitpunkt < 10 Min entfernt
+  const isScheduledAndFar = ride.is_scheduled && ride.scheduled_at && ride.status === 'accepted'
+    && (new Date(ride.scheduled_at).getTime() - Date.now()) > 10 * 60 * 1000;
+  const showDriverTracking = !isScheduledAndFar;
   const hasExistingRating = !!(existingRating || ride.rating);
   const displayRating = existingRating?.rating || ride.rating || 0;
   const displayComment = existingRating?.comment || ride.rating_comment || '';
@@ -346,11 +351,11 @@ export default function TrackPage() {
             { lat: Number(ride.pickup_lat), lng: Number(ride.pickup_lng), color: '#22C55E', label: 'A' },
             { lat: Number(ride.dropoff_lat), lng: Number(ride.dropoff_lng), color: '#EF4444', label: 'B' },
           ]}
-          driverLocation={driverLocation}
-          locationPings={locationPings}
+          driverLocation={showDriverTracking ? driverLocation : null}
+          locationPings={showDriverTracking ? locationPings : []}
           className="h-64"
         />
-        {secondsSinceLastPing !== null && (
+        {showDriverTracking && secondsSinceLastPing !== null && (
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <p className="text-xs text-gray-500">
@@ -358,7 +363,7 @@ export default function TrackPage() {
             </p>
           </div>
         )}
-        {locationPings.length === 0 && ['accepted', 'picked_up'].includes(ride.status) && (
+        {showDriverTracking && locationPings.length === 0 && ['accepted', 'picked_up'].includes(ride.status) && (
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
             <p className="text-xs text-gray-500">Warte auf Fahrer-Position...</p>
@@ -463,6 +468,23 @@ export default function TrackPage() {
           </div>
         )}
       </div>
+
+      {/* Hinweis bei geplanten Aufträgen: Tracking startet erst kurz vorher */}
+      {isScheduledAndFar && ride.driver_name && (
+        <div className="mx-4 mt-3 bg-blue-50 border border-blue-100 rounded-3xl p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">📍</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">
+                {ride.driver_name} hat den Auftrag angenommen
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Live-Tracking startet 10 Minuten vor der geplanten Abholung.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fahrer-Profil Card */}
       {ride.driver_id && driverProfile && ['accepted', 'picked_up', 'delivered'].includes(ride.status) && (
