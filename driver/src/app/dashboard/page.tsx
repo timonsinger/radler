@@ -316,6 +316,14 @@ export default function DashboardPage() {
   function handleStatusUpdate(newStatus: string) {
     if (newStatus === 'delivered') {
       setDelivered(true);
+      // Nach Abschluss: driver:go_online erneut emittieren, damit der Fahrer
+      // garantiert wieder in den vehicle-type Räumen ist und neue Aufträge bekommt
+      if (isOnlineRef.current) {
+        try {
+          const socket = getSocket();
+          socket.emit('driver:go_online');
+        } catch { /* ignorieren */ }
+      }
       setTimeout(() => {
         setDelivered(false);
         setActiveRide(null);

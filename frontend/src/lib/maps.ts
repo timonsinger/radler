@@ -96,6 +96,22 @@ export function loadGoogleMapsScript(apiKey: string): Promise<void> {
   });
 }
 
+// Reverse Geocoding: GPS-Koordinaten → Adresse
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+  if (!key) return 'Mein Standort';
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}&language=de`);
+    const data = await res.json();
+    if (data.status === 'OK' && data.results?.[0]?.formatted_address) {
+      return data.results[0].formatted_address;
+    }
+  } catch {
+    // Fallback bei Netzwerk-/API-Fehler
+  }
+  return 'Mein Standort';
+}
+
 // TypeScript Typen für Google Maps
 declare global {
   interface Window {

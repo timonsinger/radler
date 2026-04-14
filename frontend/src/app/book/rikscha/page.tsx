@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
-import { calculateRikschaPrice, formatPrice, RIKSCHA_PRICING, RikschaVehicle } from '@/lib/maps';
+import { calculateRikschaPrice, formatPrice, RIKSCHA_PRICING, RikschaVehicle, reverseGeocode } from '@/lib/maps';
 import AddressInput from '@/components/AddressInput';
 import Map from '@/components/Map';
 import NavBar from '@/components/NavBar';
@@ -59,10 +59,16 @@ export default function BookRikschaPage() {
 
   useEffect(() => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const loc = { address: 'Mein Standort', lat: pos.coords.latitude, lng: pos.coords.longitude };
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const loc = { address: 'Mein Standort', lat, lng };
       setPickup(loc);
       setTourPickup(loc);
+      const address = await reverseGeocode(lat, lng);
+      const resolved = { address, lat, lng };
+      setPickup(resolved);
+      setTourPickup(resolved);
     }, () => {});
   }, []);
 
@@ -231,8 +237,12 @@ export default function BookRikschaPage() {
               <AddressInput placeholder="Wo wirst du abgeholt?" value={pickup?.address || ''} onSelect={setPickup} />
               <button
                 onClick={() => {
-                  navigator.geolocation?.getCurrentPosition((pos) => {
-                    setPickup({ address: 'Mein Standort', lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  navigator.geolocation?.getCurrentPosition(async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    setPickup({ address: 'Mein Standort', lat, lng });
+                    const address = await reverseGeocode(lat, lng);
+                    setPickup({ address, lat, lng });
                   });
                 }}
                 className="mt-2 flex items-center gap-2 text-primary text-sm font-medium"
@@ -280,8 +290,12 @@ export default function BookRikschaPage() {
               <AddressInput placeholder="Wo treffen wir uns?" value={tourPickup?.address || ''} onSelect={setTourPickup} />
               <button
                 onClick={() => {
-                  navigator.geolocation?.getCurrentPosition((pos) => {
-                    setTourPickup({ address: 'Mein Standort', lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  navigator.geolocation?.getCurrentPosition(async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    setTourPickup({ address: 'Mein Standort', lat, lng });
+                    const address = await reverseGeocode(lat, lng);
+                    setTourPickup({ address, lat, lng });
                   });
                 }}
                 className="mt-2 flex items-center gap-2 text-primary text-sm font-medium"

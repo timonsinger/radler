@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { getSocket, disconnectSocket } from '@/lib/socket';
-import { calculatePrice, formatPrice } from '@/lib/maps';
+import { calculatePrice, formatPrice, reverseGeocode } from '@/lib/maps';
 import AddressInput from '@/components/AddressInput';
 import VehicleSelector from '@/components/VehicleSelector';
 import PriceDisplay from '@/components/PriceDisplay';
@@ -117,12 +117,12 @@ export default function BookPage() {
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPickup({
-          address: 'Mein Standort',
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setPickup({ address: 'Mein Standort', lat, lng });
+        const address = await reverseGeocode(lat, lng);
+        setPickup((prev) => prev && prev.lat === lat && prev.lng === lng ? { ...prev, address } : prev);
       },
       () => {}
     );
@@ -210,10 +210,16 @@ export default function BookPage() {
 
   function useMyLocation(forStep: 'pickup' | 'dropoff') {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const loc = { address: 'Mein Standort', lat: pos.coords.latitude, lng: pos.coords.longitude };
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const loc = { address: 'Mein Standort', lat, lng };
       if (forStep === 'pickup') setPickup(loc);
       else setDropoff(loc);
+      const address = await reverseGeocode(lat, lng);
+      const resolved = { address, lat, lng };
+      if (forStep === 'pickup') setPickup(resolved);
+      else setDropoff(resolved);
     });
   }
 
