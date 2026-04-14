@@ -199,9 +199,11 @@ async function migrate() {
   console.log('✅ Rikscha-Spalten (service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note) erstellt/geprüft');
 
   // Fahrer: accepted_services (courier, rikscha, both)
-  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS accepted_services VARCHAR(20) DEFAULT 'both'`);
+  await db.query(`ALTER TABLE drivers ADD COLUMN IF NOT EXISTS accepted_services VARCHAR(20) DEFAULT 'courier'`);
   await db.query(`ALTER TABLE drivers DROP CONSTRAINT IF EXISTS drivers_accepted_services_check`);
   await db.query(`ALTER TABLE drivers ADD CONSTRAINT drivers_accepted_services_check CHECK (accepted_services IN ('courier', 'rikscha', 'both'))`);
+  // Fahrrad/Lastenrad-Fahrer sollten nur Kurier haben
+  await db.query(`UPDATE drivers SET accepted_services = 'courier' WHERE vehicle_type IN ('bicycle', 'cargo_bike') AND accepted_services != 'courier'`);
   console.log('✅ Spalte drivers.accepted_services erstellt/geprüft');
 
   // Auftragsbeschreibung

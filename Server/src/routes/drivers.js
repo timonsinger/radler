@@ -263,13 +263,13 @@ router.patch('/profile', requireDriver, async (req, res) => {
     if (vehicle_type && ['bicycle', 'cargo_bike', 'rikscha', 'rikscha_xl', 'tandem'].includes(vehicle_type)) {
       params.push(vehicle_type);
       fields.push(`vehicle_type = $${params.length}`);
-      // Fahrrad/Lastenrad → nur Kurier
-      if (['bicycle', 'cargo_bike'].includes(vehicle_type)) {
-        params.push('courier');
-        fields.push(`accepted_services = $${params.length}`);
-      }
     }
-    if (accepted_services && ['courier', 'rikscha', 'both'].includes(accepted_services)) {
+    // accepted_services bestimmen: bei Fahrrad/Lastenrad immer 'courier', sonst Wert aus Body
+    const effectiveVehicle = vehicle_type || null;
+    if (['bicycle', 'cargo_bike'].includes(effectiveVehicle)) {
+      params.push('courier');
+      fields.push(`accepted_services = $${params.length}`);
+    } else if (accepted_services && ['courier', 'rikscha', 'both'].includes(accepted_services)) {
       params.push(accepted_services);
       fields.push(`accepted_services = $${params.length}`);
     }
