@@ -141,6 +141,7 @@ router.get('/rides', async (req, res) => {
               r.pickup_method, r.pickup_code, r.pickup_code_confirmed,
               r.delivery_method, r.delivery_code, r.delivery_code_confirmed,
               r.scheduled_at, r.is_scheduled,
+              r.description,
               r.service_type, r.passenger_count, r.tour_duration_hours, r.tour_start_time,
               c_user.name AS customer_name, c_user.email AS customer_email,
               d_user.name AS driver_name, d_user.email AS driver_email

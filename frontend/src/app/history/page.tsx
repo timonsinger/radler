@@ -23,6 +23,8 @@ interface HistoryRide {
   driver_profile_image_url?: string;
   delivery_photo_url?: string;
   pickup_photo_url?: string;
+  description?: string;
+  service_type?: string;
   created_at: string;
   completed_at?: string;
 }
@@ -276,6 +278,16 @@ export default function HistoryPage() {
                 </div>
               </div>
 
+              {selectedRide.description && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2.5">
+                  <span className="text-lg flex-shrink-0">💬</span>
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 mb-0.5">Auftragsbeschreibung:</p>
+                    <p className="text-sm text-amber-900 whitespace-pre-wrap">{selectedRide.description}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Distanz</p>
@@ -283,7 +295,9 @@ export default function HistoryPage() {
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
                   <p className="text-xs text-gray-400">Fahrzeug</p>
-                  <p className="text-sm font-bold">{selectedRide.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : '🚛 Lastenrad'}</p>
+                  <p className="text-sm font-bold">
+                    {selectedRide.vehicle_type === 'bicycle' ? '🚲 Fahrrad' : selectedRide.vehicle_type === 'cargo_bike' ? '🚛 Lastenrad' : selectedRide.vehicle_type === 'rikscha' ? '🛺 Rikscha' : selectedRide.vehicle_type === 'rikscha_xl' ? '🛺 Rikscha XL' : selectedRide.vehicle_type === 'tandem' ? '🚲 Tandem' : selectedRide.vehicle_type}
+                  </p>
                 </div>
               </div>
 

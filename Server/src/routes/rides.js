@@ -122,6 +122,7 @@ router.post('/', async (req, res) => {
       tour_duration_hours,
       tour_start_time,
       tour_note,
+      description,
     } = req.body;
 
     // Service-Type validieren (Default: courier)
@@ -221,8 +222,8 @@ router.post('/', async (req, res) => {
          invite_email, invite_role,
          pickup_method, pickup_code, delivery_method, delivery_code,
          scheduled_at, is_scheduled, status,
-         service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+         service_type, passenger_count, tour_duration_hours, tour_start_time, tour_note, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
        RETURNING *`,
       [
         req.user.userId,
@@ -251,6 +252,7 @@ router.post('/', async (req, res) => {
         tour_duration_hours ? parseFloat(tour_duration_hours) : null,
         tour_start_time ? new Date(tour_start_time) : null,
         tour_note || null,
+        description ? description.substring(0, 500) : null,
       ]
     );
     const ride = rideResult.rows[0];
@@ -967,6 +969,113 @@ router.post('/:id/rating', async (req, res) => {
     res.json({ rating, rating_comment: comment || null, driver_rating: updatedDriverRating });
   } catch (err) {
     console.error('Fehler bei POST /rides/:id/rating:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// ============ CHAT ============
+
+// GET /api/rides/:id/messages – Nachrichten für einen Auftrag
+router.get('/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const rideResult = await db.query('SELECT customer_id, driver_id, status FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    const hasAccess = ride.customer_id === req.user.userId || ride.driver_id === req.user.userId || req.user.role === 'admin';
+    if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+    const result = await db.query(
+      `SELECT m.id, m.sender_id, u.name AS sender_name, m.message, m.created_at, m.is_read
+       FROM ride_messages m
+       JOIN users u ON u.id = m.sender_id
+       WHERE m.ride_id = $1
+       ORDER BY m.created_at ASC`,
+      [id]
+    );
+
+    res.json({ messages: result.rows });
+  } catch (err) {
+    console.error('Fehler bei GET /rides/:id/messages:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// POST /api/rides/:id/messages – Nachricht senden
+router.post('/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({ error: 'Nachricht darf nicht leer sein' });
+    }
+    if (message.length > 1000) {
+      return res.status(400).json({ error: 'Nachricht darf maximal 1000 Zeichen lang sein' });
+    }
+
+    const rideResult = await db.query('SELECT customer_id, driver_id, status FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    if (!['accepted', 'picked_up'].includes(ride.status)) {
+      return res.status(400).json({ error: 'Chat nur bei aktivem Auftrag möglich' });
+    }
+
+    const hasAccess = ride.customer_id === req.user.userId || ride.driver_id === req.user.userId;
+    if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+    const userResult = await db.query('SELECT name FROM users WHERE id = $1', [req.user.userId]);
+    const senderName = userResult.rows[0]?.name || 'Unbekannt';
+
+    const result = await db.query(
+      `INSERT INTO ride_messages (ride_id, sender_id, message)
+       VALUES ($1, $2, $3)
+       RETURNING id, sender_id, message, created_at`,
+      [id, req.user.userId, message.trim().substring(0, 1000)]
+    );
+
+    const msg = { ...result.rows[0], sender_name: senderName };
+
+    // Socket-Event an Ride-Room senden
+    try {
+      const io = getIO();
+      io.to(`ride:${id}`).emit('chat:message', { rideId: id, message: msg });
+    } catch (socketErr) {
+      console.error('Socket.io Fehler bei chat:message:', socketErr.message);
+    }
+
+    res.status(201).json({ message: msg });
+  } catch (err) {
+    console.error('Fehler bei POST /rides/:id/messages:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+// PATCH /api/rides/:id/messages/read – Nachrichten als gelesen markieren
+router.patch('/:id/messages/read', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const rideResult = await db.query('SELECT customer_id, driver_id FROM rides WHERE id = $1', [id]);
+    if (rideResult.rows.length === 0) return res.status(404).json({ error: 'Auftrag nicht gefunden' });
+    const ride = rideResult.rows[0];
+
+    const hasAccess = ride.customer_id === req.user.userId || ride.driver_id === req.user.userId;
+    if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+    // Nachrichten des ANDEREN Users als gelesen markieren
+    await db.query(
+      `UPDATE ride_messages SET is_read = true
+       WHERE ride_id = $1 AND sender_id != $2 AND is_read = false`,
+      [id, req.user.userId]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Fehler bei PATCH /rides/:id/messages/read:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 });

@@ -23,10 +23,22 @@ interface Ride {
   completed_at: string | null;
   pickup_method: string;
   delivery_method: string;
+  description: string | null;
+  service_type: string | null;
+  passenger_count: number | null;
+  tour_duration_hours: number | null;
   customer_name: string;
   customer_email: string;
   driver_name: string;
   driver_email: string;
+}
+
+interface ChatMessage {
+  id: string;
+  sender_name: string;
+  sender_role: string;
+  message: string;
+  created_at: string;
 }
 
 const STATUSES = ['all', 'pending', 'accepted', 'picked_up', 'delivered', 'cancelled', 'expired'];
@@ -45,8 +57,19 @@ export default function RidesPage() {
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
+  const [detailTab, setDetailTab] = useState<'info' | 'chat'>('info');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+
+  const loadChat = useCallback((rideId: string) => {
+    setChatLoading(true);
+    apiFetch(`/api/rides/${rideId}/messages`)
+      .then((data) => setChatMessages(data.messages || []))
+      .catch(() => setChatMessages([]))
+      .finally(() => setChatLoading(false));
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -149,7 +172,7 @@ export default function RidesPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {rides.map((ride) => (
-                <tr key={ride.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedRide(ride)}>
+                <tr key={ride.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedRide(ride); setDetailTab('info'); setChatMessages([]); }}>
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(ride.created_at)}</td>
                   <td className="px-4 py-3 text-gray-900">{ride.customer_name || '–'}</td>
                   <td className="px-4 py-3 text-gray-900">{ride.driver_name || '–'}</td>
@@ -205,51 +228,100 @@ export default function RidesPage() {
               <button onClick={() => setSelectedRide(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-gray-400">Status:</span> <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(selectedRide.status)}`}>{statusLabel(selectedRide.status)}</span></div>
-              <div><span className="text-gray-400">Fahrzeug:</span> {selectedRide.vehicle_type === 'bicycle' ? 'Fahrrad' : 'Lastenrad'}</div>
-              <div><span className="text-gray-400">Preis:</span> <strong>{formatPrice(Number(selectedRide.price))}</strong></div>
-              <div><span className="text-gray-400">Provision:</span> <strong className="text-green-700">{selectedRide.platform_fee ? formatPrice(Number(selectedRide.platform_fee)) : '–'}</strong></div>
-              <div><span className="text-gray-400">Fahrer-Verdienst:</span> {selectedRide.driver_payout ? formatPrice(Number(selectedRide.driver_payout)) : '–'}</div>
-              <div><span className="text-gray-400">Distanz:</span> {selectedRide.distance_km ? `${Number(selectedRide.distance_km).toFixed(1)} km` : '–'}</div>
-              <div><span className="text-gray-400">Bewertung:</span> {selectedRide.rating ? `${selectedRide.rating}/5` : '–'}</div>
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setDetailTab('info')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${detailTab === 'info' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => { setDetailTab('chat'); loadChat(selectedRide.id); }}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${detailTab === 'chat' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Chat-Verlauf
+              </button>
             </div>
 
-            <div className="text-sm space-y-2">
-              <div><span className="text-gray-400">Abholung:</span><br />{selectedRide.pickup_address}</div>
-              <div><span className="text-gray-400">Ziel:</span><br />{selectedRide.dropoff_address}</div>
-            </div>
+            {detailTab === 'info' ? (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-gray-400">Status:</span> <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(selectedRide.status)}`}>{statusLabel(selectedRide.status)}</span></div>
+                  <div><span className="text-gray-400">Typ:</span> {selectedRide.service_type === 'rikscha_taxi' ? '🛺 Rikscha-Taxi' : selectedRide.service_type === 'rikscha_tour' ? '🗺 Stadt-Tour' : '📦 Kurier'}</div>
+                  <div><span className="text-gray-400">Fahrzeug:</span> {selectedRide.vehicle_type === 'bicycle' ? 'Fahrrad' : selectedRide.vehicle_type === 'cargo_bike' ? 'Lastenrad' : selectedRide.vehicle_type === 'rikscha' ? 'Rikscha' : selectedRide.vehicle_type === 'rikscha_xl' ? 'Rikscha XL' : selectedRide.vehicle_type === 'tandem' ? 'Tandem' : selectedRide.vehicle_type}</div>
+                  <div><span className="text-gray-400">Preis:</span> <strong>{formatPrice(Number(selectedRide.price))}</strong></div>
+                  <div><span className="text-gray-400">Provision:</span> <strong className="text-green-700">{selectedRide.platform_fee ? formatPrice(Number(selectedRide.platform_fee)) : '–'}</strong></div>
+                  <div><span className="text-gray-400">Fahrer-Verdienst:</span> {selectedRide.driver_payout ? formatPrice(Number(selectedRide.driver_payout)) : '–'}</div>
+                  <div><span className="text-gray-400">Distanz:</span> {selectedRide.distance_km ? `${Number(selectedRide.distance_km).toFixed(1)} km` : '–'}</div>
+                  <div><span className="text-gray-400">Bewertung:</span> {selectedRide.rating ? `${selectedRide.rating}/5` : '–'}</div>
+                  {selectedRide.passenger_count && <div><span className="text-gray-400">Fahrgäste:</span> {selectedRide.passenger_count}</div>}
+                  {selectedRide.tour_duration_hours && <div><span className="text-gray-400">Tour-Dauer:</span> {selectedRide.tour_duration_hours} Std.</div>}
+                </div>
 
-            <div className="text-sm space-y-1">
-              <div><span className="text-gray-400">Kunde:</span> {selectedRide.customer_name} ({selectedRide.customer_email})</div>
-              <div><span className="text-gray-400">Fahrer:</span> {selectedRide.driver_name || '–'} {selectedRide.driver_email ? `(${selectedRide.driver_email})` : ''}</div>
-            </div>
+                {selectedRide.description && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm">
+                    <p className="text-amber-700 font-semibold text-xs mb-1">💬 Auftragsbeschreibung:</p>
+                    <p className="text-amber-900 whitespace-pre-wrap">{selectedRide.description}</p>
+                  </div>
+                )}
 
-            {/* Timeline */}
-            <div className="text-sm space-y-1">
-              <p className="text-gray-400 font-medium">Timeline:</p>
-              <p>Erstellt: {formatDate(selectedRide.created_at)}</p>
-              {selectedRide.accepted_at && <p>Angenommen: {formatDate(selectedRide.accepted_at)}</p>}
-              {selectedRide.completed_at && <p>Abgeschlossen: {formatDate(selectedRide.completed_at)}</p>}
-            </div>
+                <div className="text-sm space-y-2">
+                  <div><span className="text-gray-400">Abholung:</span><br />{selectedRide.pickup_address}</div>
+                  <div><span className="text-gray-400">Ziel:</span><br />{selectedRide.dropoff_address}</div>
+                </div>
 
-            {/* Verification Methods */}
-            <div className="text-sm space-y-1">
-              <div><span className="text-gray-400">Abholung:</span> {selectedRide.pickup_method === 'code' ? 'Code' : 'Foto'}</div>
-              <div><span className="text-gray-400">Übergabe:</span> {selectedRide.delivery_method === 'code' ? 'Code' : 'Foto'}</div>
-            </div>
+                <div className="text-sm space-y-1">
+                  <div><span className="text-gray-400">Kunde:</span> {selectedRide.customer_name} ({selectedRide.customer_email})</div>
+                  <div><span className="text-gray-400">Fahrer:</span> {selectedRide.driver_name || '–'} {selectedRide.driver_email ? `(${selectedRide.driver_email})` : ''}</div>
+                </div>
 
-            {/* Photos */}
-            {selectedRide.pickup_photo_url && (
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Abhol-Foto</p>
-                <img src={`${apiBase}${selectedRide.pickup_photo_url}`} alt="" className="w-full rounded-xl max-h-48 object-cover" />
-              </div>
-            )}
-            {selectedRide.delivery_photo_url && (
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Ablieferungs-Foto</p>
-                <img src={`${apiBase}${selectedRide.delivery_photo_url}`} alt="" className="w-full rounded-xl max-h-48 object-cover" />
+                {/* Timeline */}
+                <div className="text-sm space-y-1">
+                  <p className="text-gray-400 font-medium">Timeline:</p>
+                  <p>Erstellt: {formatDate(selectedRide.created_at)}</p>
+                  {selectedRide.accepted_at && <p>Angenommen: {formatDate(selectedRide.accepted_at)}</p>}
+                  {selectedRide.completed_at && <p>Abgeschlossen: {formatDate(selectedRide.completed_at)}</p>}
+                </div>
+
+                {/* Verification Methods */}
+                <div className="text-sm space-y-1">
+                  <div><span className="text-gray-400">Abholung:</span> {selectedRide.pickup_method === 'code' ? 'Code' : 'Foto'}</div>
+                  <div><span className="text-gray-400">Übergabe:</span> {selectedRide.delivery_method === 'code' ? 'Code' : 'Foto'}</div>
+                </div>
+
+                {/* Photos */}
+                {selectedRide.pickup_photo_url && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Abhol-Foto</p>
+                    <img src={`${apiBase}${selectedRide.pickup_photo_url}`} alt="" className="w-full rounded-xl max-h-48 object-cover" />
+                  </div>
+                )}
+                {selectedRide.delivery_photo_url && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Ablieferungs-Foto</p>
+                    <img src={`${apiBase}${selectedRide.delivery_photo_url}`} alt="" className="w-full rounded-xl max-h-48 object-cover" />
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Chat Tab */
+              <div className="space-y-2">
+                {chatLoading ? (
+                  <p className="text-center text-sm text-gray-400 py-8">Laden...</p>
+                ) : chatMessages.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-8">Keine Chat-Nachrichten für diesen Auftrag.</p>
+                ) : (
+                  chatMessages.map((msg) => (
+                    <div key={msg.id} className="bg-gray-50 rounded-xl p-3 text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900">{msg.sender_name}</span>
+                        <span className="text-xs text-gray-400">{formatDate(msg.created_at)}</span>
+                      </div>
+                      <p className="text-gray-700 whitespace-pre-wrap">{msg.message}</p>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

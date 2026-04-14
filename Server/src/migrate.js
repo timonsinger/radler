@@ -204,6 +204,23 @@ async function migrate() {
   await db.query(`ALTER TABLE drivers ADD CONSTRAINT drivers_accepted_services_check CHECK (accepted_services IN ('courier', 'rikscha', 'both'))`);
   console.log('✅ Spalte drivers.accepted_services erstellt/geprüft');
 
+  // Auftragsbeschreibung
+  await db.query(`ALTER TABLE rides ADD COLUMN IF NOT EXISTS description TEXT`);
+  console.log('✅ Spalte rides.description erstellt/geprüft');
+
+  // Chat-Nachrichten
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ride_messages (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      ride_id      UUID REFERENCES rides(id) NOT NULL,
+      sender_id    UUID REFERENCES users(id) NOT NULL,
+      message      TEXT NOT NULL,
+      created_at   TIMESTAMP DEFAULT NOW(),
+      is_read      BOOLEAN DEFAULT false
+    )
+  `);
+  console.log('✅ Tabelle ride_messages erstellt/geprüft');
+
   console.log('✅ Alle Tabellen erstellt!');
   process.exit(0);
 }

@@ -205,6 +205,12 @@ function setupSockets(server) {
       console.log(`User ${userId} abonniert Fahrer: ${vehicle_type}`);
     });
 
+    // Event: Chat-Typing-Indicator
+    socket.on('chat:typing', ({ rideId, isTyping }) => {
+      if (!rideId) return;
+      socket.to(`ride:${rideId}`).emit('chat:typing', { rideId, userId, isTyping });
+    });
+
     // Event: Kunde kündigt Fahrer-Positionen
     socket.on('drivers:unsubscribe', () => {
       if (socket.driverSubscription) {

@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Map from './Map';
+import ChatModal from './ChatModal';
 import { apiFetch } from '@/lib/api';
 import { formatPrice } from '@/lib/maps';
+import { getStoredUser } from '@/lib/auth';
 
 interface RouteInfo {
   distanceKm: number;
@@ -32,6 +34,7 @@ interface Ride {
   passenger_count?: number;
   tour_duration_hours?: number;
   driver_payout?: number;
+  description?: string;
 }
 
 interface Props {
@@ -117,6 +120,9 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
   const [cancelling, setCancelling] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [routeInfoData, setRouteInfoData] = useState<{ toPickup?: RouteInfo; pickupToDropoff?: RouteInfo }>({});
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const currentUser = getStoredUser();
 
   const handleRouteInfo = useCallback((info: { toPickup?: RouteInfo; pickupToDropoff?: RouteInfo }) => {
     setRouteInfoData(info);
@@ -452,6 +458,19 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
             </div>
           </div>
 
+          {/* Beschreibung / Kundenhinweis */}
+          {ride.description && (
+            <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <div className="flex items-start gap-2">
+                <span className="text-lg">💬</span>
+                <div>
+                  <p className="text-[10px] font-semibold text-amber-700 uppercase">Hinweis vom Kunden</p>
+                  <p className="text-sm text-amber-900 mt-1">{ride.description}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Verifizierung — nur für Kurier, nicht für Rikscha */}
           {!isRikscha && <div className="mb-4">
             {currentMethod === 'code' && !canProceed && (
@@ -557,6 +576,35 @@ export default function ActiveRide({ ride, driverLocation, onStatusUpdate, userN
           )}
         </div>
       </div>
+
+      {/* Chat-Button (schwebend) */}
+      {currentUser && (
+        <button
+          onClick={() => { setChatOpen(true); setUnreadCount(0); }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform z-40"
+        >
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Chat-Modal */}
+      {currentUser && (
+        <ChatModal
+          rideId={ride.id}
+          userId={currentUser.id}
+          otherName={ride.customer_name || 'Kunde'}
+          isOpen={chatOpen}
+          onClose={() => setChatOpen(false)}
+          onUnreadChange={setUnreadCount}
+        />
+      )}
     </div>
   );
 }

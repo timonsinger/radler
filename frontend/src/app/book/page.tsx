@@ -111,6 +111,9 @@ export default function BookPage() {
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
 
+  // Auftragsbeschreibung
+  const [description, setDescription] = useState('');
+
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -192,6 +195,7 @@ export default function BookPage() {
           delivery_method: deliveryMethod,
           delivery_code: deliveryMethod === 'code' ? deliveryCode : undefined,
           scheduled_at,
+          description: description || undefined,
         }),
       });
       if (data.error) throw new Error(data.error);
@@ -652,6 +656,19 @@ export default function BookPage() {
                 <span className="text-lg">{vehicleType === 'bicycle' ? '🚲' : '🚛'}</span>
                 <p className="text-sm text-gray-600">{vehicleType === 'bicycle' ? 'Fahrradkurier' : 'Lastenrad'}</p>
               </div>
+            </div>
+
+            {/* Beschreibung */}
+            <div className="bg-white rounded-3xl p-4 shadow-sm">
+              <label className="text-xs text-gray-400 font-semibold uppercase">Beschreibung / Hinweise für den Kurier</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value.substring(0, 500))}
+                placeholder="z.B. Paket steht vor der Tür, bitte klingeln bei Müller, zerbrechlich..."
+                rows={3}
+                className="w-full mt-2 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+              />
+              <p className="text-right text-xs text-gray-300 mt-1">{description.length}/500</p>
             </div>
 
             {error && (

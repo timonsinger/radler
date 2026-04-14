@@ -18,6 +18,7 @@ interface Ride {
   service_type?: string;
   passenger_count?: number;
   tour_duration_hours?: number;
+  description?: string;
 }
 
 interface Props {
@@ -116,6 +117,17 @@ export default function RideRequest({ ride, onAccept, onDecline, accepting }: Pr
               </div>
             ))}
           </div>
+
+          {/* Kundenhinweis */}
+          {ride.description && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2.5">
+              <span className="text-lg flex-shrink-0">💬</span>
+              <div>
+                <p className="text-xs font-semibold text-amber-700 mb-0.5">Hinweis vom Kunden:</p>
+                <p className="text-sm text-amber-900 whitespace-pre-wrap">{ride.description}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Buttons */}
