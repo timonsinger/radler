@@ -61,11 +61,12 @@ export default function CompleteTaskModal({ tasks, onComplete, onClose }: Comple
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
-        className={`bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-y-auto p-5 space-y-3 ${
+        className={`bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-y-auto p-5 pb-8 space-y-3 ${
           tasks.length > 0 ? 'max-h-[80vh]' : ''
         }`}
+        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

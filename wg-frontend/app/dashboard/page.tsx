@@ -118,7 +118,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <main className="max-w-lg mx-auto px-4 pt-4 pb-24 space-y-4">
+      <main className="max-w-lg mx-auto px-4 pt-6 pb-24 space-y-4">
         {/* Header */}
         <div>
           <h1 className="text-xl font-heading font-bold text-gray-900 break-words">{wg.wg_name}</h1>
