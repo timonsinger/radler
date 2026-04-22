@@ -118,24 +118,24 @@ export default function DashboardPage() {
 
   return (
     <>
-      <main className="max-w-lg mx-auto px-4 pt-6 pb-24 space-y-5">
+      <main className="max-w-lg mx-auto px-4 pt-4 pb-24 space-y-4">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-heading font-bold text-gray-900">{wg.wg_name}</h1>
+          <h1 className="text-xl font-heading font-bold text-gray-900 break-words">{wg.wg_name}</h1>
           <p className="text-xs text-gray-400">Willkommen, {user.name}</p>
         </div>
 
         {/* Großer "Ich habe was gemacht" Button */}
         <button
           onClick={() => setShowCompleteModal(true)}
-          className="w-full bg-primary text-white rounded-2xl p-5 shadow-lg hover:bg-primary-light active:scale-[0.98] transition-all text-left"
+          className="w-full bg-primary text-white rounded-2xl p-4 shadow-lg hover:bg-primary-light active:scale-[0.98] transition-all text-left"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
               ✨
             </div>
             <div>
-              <p className="font-heading font-bold text-lg">Ich habe was gemacht!</p>
+              <p className="font-heading font-bold">Ich habe was gemacht!</p>
               <p className="text-white/70 text-xs mt-0.5">Aufgabe auswählen & Punkte kassieren</p>
             </div>
           </div>

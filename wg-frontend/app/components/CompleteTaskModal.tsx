@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getImageUrl } from '../lib/api';
 
 interface Task {
@@ -28,6 +29,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function CompleteTaskModal({ tasks, onComplete, onClose }: CompleteTaskModalProps) {
+  const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -61,7 +63,9 @@ export default function CompleteTaskModal({ tasks, onComplete, onClose }: Comple
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[85vh] overflow-y-auto p-6 space-y-4"
+        className={`bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-y-auto p-5 space-y-3 ${
+          tasks.length > 0 ? 'max-h-[80vh]' : ''
+        }`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -73,10 +77,15 @@ export default function CompleteTaskModal({ tasks, onComplete, onClose }: Comple
         </div>
 
         {tasks.length === 0 ? (
-          <div className="text-center py-8 space-y-2">
+          <div className="text-center py-6 space-y-2">
             <p className="text-3xl">📋</p>
             <p className="text-gray-400 text-sm">Noch keine Aufgaben erstellt</p>
-            <p className="text-gray-400 text-xs">Erstelle zuerst Aufgaben im Aufgaben-Tab</p>
+            <button
+              onClick={() => { onClose(); router.push('/tasks'); }}
+              className="text-primary font-semibold text-sm"
+            >
+              Jetzt Aufgaben erstellen
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
