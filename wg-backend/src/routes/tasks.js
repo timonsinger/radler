@@ -81,6 +81,30 @@ router.post('/', requireAuth, requireWgMember, upload.single('photo'), async (re
   }
 });
 
+// PATCH /api/wg/:wgId/tasks/:taskId/due — Task als anfällig markieren/entmarkieren
+router.patch('/:taskId/due', requireAuth, requireWgMember, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const result = await db.query(
+      `UPDATE tasks SET is_due = NOT is_due WHERE id = $1 AND wg_id = $2 RETURNING *`,
+      [taskId, req.params.wgId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Task nicht gefunden' });
+
+    const task = result.rows[0];
+
+    try {
+      const { getIO } = require('../sockets');
+      getIO().to(`wg:${req.params.wgId}`).emit('task:updated', { task });
+    } catch { /* Socket optional */ }
+
+    res.json({ task });
+  } catch (err) {
+    console.error('Fehler bei PATCH /tasks/due:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 // POST /api/wg/:wgId/tasks/:taskId/complete — Task erledigen
 router.post('/:taskId/complete', requireAuth, requireWgMember, async (req, res) => {
   try {

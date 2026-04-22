@@ -89,6 +89,10 @@ async function migrate() {
   `);
   console.log('✅ Tabelle ping_log erstellt/geprüft');
 
+  // Migration: is_due Spalte für Tasks
+  await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_due BOOLEAN DEFAULT false`);
+  console.log('✅ Migration: is_due Spalte hinzugefügt');
+
   console.log('✅ Alle Tabellen erstellt!');
 }
 
