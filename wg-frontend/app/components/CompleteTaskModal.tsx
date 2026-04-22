@@ -18,16 +18,6 @@ interface CompleteTaskModalProps {
   onClose: () => void;
 }
 
-const categoryColors: Record<string, string> = {
-  Bad: 'bg-blue-100 text-blue-700',
-  Küche: 'bg-orange-100 text-orange-700',
-  Wohnzimmer: 'bg-green-100 text-green-700',
-  Flur: 'bg-yellow-100 text-yellow-700',
-  Müll: 'bg-gray-200 text-gray-700',
-  Wäsche: 'bg-pink-100 text-pink-700',
-  Sonstiges: 'bg-purple-100 text-purple-700',
-};
-
 export default function CompleteTaskModal({ tasks, onComplete, onClose }: CompleteTaskModalProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -50,7 +40,7 @@ export default function CompleteTaskModal({ tasks, onComplete, onClose }: Comple
 
   if (done) {
     return (
-      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center">
         <div className="bg-white rounded-3xl p-10 text-center space-y-3 animate-bounce">
           <div className="text-6xl">🎉</div>
           <p className="text-lg font-heading font-bold text-gray-900">Super gemacht!</p>
@@ -63,10 +53,9 @@ export default function CompleteTaskModal({ tasks, onComplete, onClose }: Comple
   return (
     <div className="fixed inset-0 bg-black/40 z-[60] flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
-        className={`bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-y-auto p-5 pb-8 space-y-3 ${
+        className={`bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl overflow-y-auto p-5 modal-sheet space-y-3 ${
           tasks.length > 0 ? 'max-h-[80vh]' : ''
         }`}
-        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

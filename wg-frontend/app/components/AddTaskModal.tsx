@@ -50,9 +50,9 @@ export default function AddTaskModal({ wgId, onClose, onAdded }: AddTaskModalPro
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto p-6 space-y-4"
+        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto p-5 modal-sheet space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

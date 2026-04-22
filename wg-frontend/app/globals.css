@@ -31,8 +31,6 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-body);
   overscroll-behavior: none;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -40,5 +38,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 main {
-  padding-bottom: 5.5rem;
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Bottom-Nav: über dem Home-Indicator */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Modal-Sheet: Platz für Home-Indicator */
+.modal-sheet {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
