@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "./lib/auth";
 
 export const metadata: Metadata = {
   title: "WG-App",
@@ -36,7 +37,9 @@ export default function RootLayout({
         />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className="min-h-full flex flex-col font-body">{children}</body>
+      <body className="min-h-full flex flex-col font-body">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
